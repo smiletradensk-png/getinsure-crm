@@ -52,10 +52,9 @@ class LeadCreate(BaseModel):
     status: str  # New/Contacted/Interested/Proposal/Closed/Not Interested
     source: str  # Walk-in/Reference/Online/Other
     city: Optional[str] = ""
-    premium_amount: Optional[float] = 0.0
-    expected_closing_month: Optional[str] = ""
     notes: Optional[str] = ""
     next_followup_date: Optional[str] = None
+    next_followup_type: Optional[str] = "Call"
 
 class Lead(LeadCreate):
     id: Optional[str] = None
