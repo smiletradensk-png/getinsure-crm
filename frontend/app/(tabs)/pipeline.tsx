@@ -139,12 +139,6 @@ export default function PipelineScreen() {
                   {leads.length}
                 </Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text variant="bodyLarge">Total Value:</Text>
-                <Text variant="bodyLarge" style={styles.summaryValue}>
-                  ₹{leads.reduce((sum, lead) => sum + (lead.premium_amount || 0), 0).toLocaleString()}
-                </Text>
-              </View>
             </Card.Content>
           </Card>
         </View>
