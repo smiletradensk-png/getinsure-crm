@@ -177,28 +177,6 @@ export default function AddLeadScreen() {
             />
 
             <TextInput
-              label="Premium Amount (₹)"
-              value={premiumAmount}
-              onChangeText={setPremiumAmount}
-              mode="outlined"
-              style={styles.input}
-              keyboardType="numeric"
-              outlineColor="#009688"
-              activeOutlineColor="#009688"
-            />
-
-            <TextInput
-              label="Expected Closing Month (YYYY-MM)"
-              value={expectedClosingMonth}
-              onChangeText={setExpectedClosingMonth}
-              mode="outlined"
-              style={styles.input}
-              placeholder="2025-07"
-              outlineColor="#009688"
-              activeOutlineColor="#009688"
-            />
-
-            <TextInput
               label="Next Follow-up Date (YYYY-MM-DD)"
               value={nextFollowupDate}
               onChangeText={setNextFollowupDate}
@@ -207,6 +185,21 @@ export default function AddLeadScreen() {
               placeholder="2025-07-20"
               outlineColor="#009688"
               activeOutlineColor="#009688"
+            />
+
+            <Text variant="labelLarge" style={styles.label}>
+              Next Follow-up Type
+            </Text>
+            <SegmentedButtons
+              value={nextFollowupType}
+              onValueChange={setNextFollowupType}
+              buttons={[
+                { value: 'Call', label: 'Call' },
+                { value: 'WhatsApp', label: 'WhatsApp' },
+                { value: 'Meeting', label: 'Meeting' },
+                { value: 'Email', label: 'Email' },
+              ]}
+              style={styles.segmented}
             />
 
             <TextInput
