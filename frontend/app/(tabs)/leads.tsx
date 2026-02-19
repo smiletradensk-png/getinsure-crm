@@ -637,4 +637,66 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#009688',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bulkWhatsAppModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  modalContent: {
+    padding: 16,
+  },
+  modalLabel: {
+    marginTop: 16,
+    marginBottom: 8,
+    color: '#000000',
+  },
+  recipientsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  recipientChip: {
+    height: 32,
+  },
+  helpText: {
+    color: '#757575',
+    marginBottom: 8,
+  },
+  messageInput: {
+    marginBottom: 16,
+  },
+  noteText: {
+    color: '#FF9800',
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  modalButton: {
+    flex: 1,
+  },
 });
