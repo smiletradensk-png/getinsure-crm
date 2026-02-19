@@ -90,7 +90,6 @@ export default function PipelineScreen() {
         <View style={styles.content}>
           {stages.map((stage) => {
             const stageLeads = getStageLeads(stage);
-            const stageValue = getStageValue(stage);
 
             return (
               <Card
@@ -107,27 +106,18 @@ export default function PipelineScreen() {
                     </View>
                   </View>
 
-                  <Text variant="headlineSmall" style={styles.stageValue}>
-                    ₹{stageValue.toLocaleString()}
-                  </Text>
-
                   {stageLeads.length > 0 && (
                     <View style={styles.leadsList}>
-                      {stageLeads.slice(0, 3).map((lead) => (
+                      {stageLeads.slice(0, 5).map((lead) => (
                         <View key={lead.id} style={styles.leadItem}>
                           <Text variant="bodyMedium" style={styles.leadName}>
                             • {lead.name}
                           </Text>
-                          {lead.premium_amount > 0 && (
-                            <Text variant="bodySmall" style={styles.leadPremium}>
-                              ₹{lead.premium_amount.toLocaleString()}
-                            </Text>
-                          )}
                         </View>
                       ))}
-                      {stageLeads.length > 3 && (
+                      {stageLeads.length > 5 && (
                         <Text variant="bodySmall" style={styles.moreText}>
-                          +{stageLeads.length - 3} more
+                          +{stageLeads.length - 5} more
                         </Text>
                       )}
                     </View>
