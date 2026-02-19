@@ -10,7 +10,6 @@ interface Lead {
   id: string;
   name: string;
   status: string;
-  premium_amount: number;
 }
 
 export default function PipelineScreen() {
@@ -44,11 +43,6 @@ export default function PipelineScreen() {
 
   const getStageLeads = (stage: string) => {
     return leads.filter((lead) => lead.status === stage);
-  };
-
-  const getStageValue = (stage: string) => {
-    const stageLeads = getStageLeads(stage);
-    return stageLeads.reduce((sum, lead) => sum + (lead.premium_amount || 0), 0);
   };
 
   const getStageColor = (stage: string) => {
