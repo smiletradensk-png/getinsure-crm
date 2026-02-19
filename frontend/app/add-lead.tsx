@@ -28,10 +28,9 @@ export default function AddLeadScreen() {
   const [status, setStatus] = useState('New');
   const [source, setSource] = useState('Walk-in');
   const [city, setCity] = useState('');
-  const [premiumAmount, setPremiumAmount] = useState('');
-  const [expectedClosingMonth, setExpectedClosingMonth] = useState('');
   const [notes, setNotes] = useState('');
   const [nextFollowupDate, setNextFollowupDate] = useState('');
+  const [nextFollowupType, setNextFollowupType] = useState('Call');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
