@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, Alert } from 'react-native';
-import { Text, Card, FAB, Chip, ActivityIndicator, Searchbar, IconButton } from 'react-native-paper';
+import { Text, Card, FAB, Chip, ActivityIndicator, Searchbar, IconButton, Checkbox, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -16,7 +16,6 @@ interface Lead {
   status: string;
   source: string;
   city: string;
-  premium_amount: number;
   next_followup_date?: string;
   notes: string;
 }
@@ -27,6 +26,8 @@ export default function LeadsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
 
   const fetchLeads = async () => {
     try {
@@ -64,6 +65,79 @@ export default function LeadsScreen() {
       );
       setFilteredLeads(filtered);
     }
+  };
+
+  const toggleSelection = (leadId: string) => {
+    const newSelection = new Set(selectedLeads);
+    if (newSelection.has(leadId)) {
+      newSelection.delete(leadId);
+    } else {
+      newSelection.add(leadId);
+    }
+    setSelectedLeads(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeads.size === filteredLeads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(filteredLeads.map(lead => lead.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    Alert.alert(
+      'Delete Selected Leads',
+      `Are you sure you want to delete ${selectedLeads.size} lead(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await Promise.all(
+                Array.from(selectedLeads).map(leadId =>
+                  fetch(`${BACKEND_URL}/api/leads/${leadId}`, { method: 'DELETE' })
+                )
+              );
+              setSelectedLeads(new Set());
+              setSelectionMode(false);
+              fetchLeads();
+              Alert.alert('Success', 'Leads deleted successfully');
+            } catch (error) {
+              console.error('Error deleting leads:', error);
+              Alert.alert('Error', 'Failed to delete some leads');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBulkWhatsApp = () => {
+    const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
+    const mobiles = selectedLeadsData.map(lead => lead.mobile).join(',');
+    const message = encodeURIComponent('Hello from GETINSURE CRM');
+    
+    Alert.alert(
+      'Bulk WhatsApp',
+      `Send WhatsApp message to ${selectedLeads.size} lead(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: () => {
+            selectedLeadsData.forEach(lead => {
+              const cleanMobile = lead.mobile.replace(/[^0-9]/g, '');
+              setTimeout(() => {
+                Linking.openURL(`https://wa.me/91${cleanMobile}?text=${message}`);
+              }, 500);
+            });
+          },
+        },
+      ]
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -146,6 +220,67 @@ export default function LeadsScreen() {
         />
       </View>
 
+      {/* Selection Mode Controls */}
+      {selectionMode && (
+        <View style={styles.selectionControls}>
+          <View style={styles.selectionInfo}>
+            <Checkbox
+              status={selectedLeads.size === filteredLeads.length ? 'checked' : 'unchecked'}
+              onPress={toggleSelectAll}
+            />
+            <Text variant="bodyMedium" style={styles.selectionText}>
+              {selectedLeads.size} selected
+            </Text>
+          </View>
+          <View style={styles.bulkActions}>
+            <Button
+              mode="contained"
+              onPress={handleBulkWhatsApp}
+              disabled={selectedLeads.size === 0}
+              icon="whatsapp"
+              buttonColor="#25D366"
+              style={styles.bulkButton}
+            >
+              WhatsApp
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleBulkDelete}
+              disabled={selectedLeads.size === 0}
+              icon="delete"
+              buttonColor="#F44336"
+              style={styles.bulkButton}
+            >
+              Delete
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => {
+                setSelectionMode(false);
+                setSelectedLeads(new Set());
+              }}
+              textColor="#009688"
+            >
+              Done
+            </Button>
+          </View>
+        </View>
+      )}
+
+      {/* Selection Toggle Button */}
+      {!selectionMode && filteredLeads.length > 0 && (
+        <View style={styles.actionBar}>
+          <Button
+            mode="outlined"
+            onPress={() => setSelectionMode(true)}
+            icon="checkbox-marked-outline"
+            textColor="#009688"
+          >
+            Select Leads
+          </Button>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -168,6 +303,12 @@ export default function LeadsScreen() {
               <Card key={lead.id} style={styles.leadCard}>
                 <Card.Content>
                   <View style={styles.leadHeader}>
+                    {selectionMode && (
+                      <Checkbox
+                        status={selectedLeads.has(lead.id) ? 'checked' : 'unchecked'}
+                        onPress={() => toggleSelection(lead.id)}
+                      />
+                    )}
                     <View style={styles.leadInfo}>
                       <Text variant="titleLarge" style={styles.leadName}>
                         {lead.name}
@@ -176,12 +317,14 @@ export default function LeadsScreen() {
                         {lead.mobile}
                       </Text>
                     </View>
-                    <IconButton
-                      icon="delete"
-                      iconColor="#F44336"
-                      size={20}
-                      onPress={() => handleDelete(lead.id)}
-                    />
+                    {!selectionMode && (
+                      <IconButton
+                        icon="delete"
+                        iconColor="#F44336"
+                        size={20}
+                        onPress={() => handleDelete(lead.id)}
+                      />
+                    )}
                   </View>
 
                   <View style={styles.chipContainer}>
@@ -201,43 +344,39 @@ export default function LeadsScreen() {
                     </Text>
                   )}
 
-                  {lead.premium_amount > 0 && (
-                    <Text variant="bodyMedium" style={styles.leadPremium}>
-                      Premium: ₹{lead.premium_amount.toLocaleString()}
-                    </Text>
-                  )}
-
                   {lead.next_followup_date && (
                     <Text variant="bodySmall" style={styles.followupDate}>
                       Next Follow-up: {lead.next_followup_date}
                     </Text>
                   )}
 
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.callButton]}
-                      onPress={() => handleCall(lead.mobile)}
-                    >
-                      <MaterialCommunityIcons name="phone" size={20} color="#FFFFFF" />
-                      <Text style={styles.actionButtonText}>Call</Text>
-                    </TouchableOpacity>
+                  {!selectionMode && (
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.callButton]}
+                        onPress={() => handleCall(lead.mobile)}
+                      >
+                        <MaterialCommunityIcons name="phone" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>Call</Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.whatsappButton]}
-                      onPress={() => handleWhatsApp(lead.mobile)}
-                    >
-                      <MaterialCommunityIcons name="whatsapp" size={20} color="#FFFFFF" />
-                      <Text style={styles.actionButtonText}>WhatsApp</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.whatsappButton]}
+                        onPress={() => handleWhatsApp(lead.mobile)}
+                      >
+                        <MaterialCommunityIcons name="whatsapp" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>WhatsApp</Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.viewButton]}
-                      onPress={() => router.push(`/lead-detail?id=${lead.id}`)}
-                    >
-                      <MaterialCommunityIcons name="eye" size={20} color="#FFFFFF" />
-                      <Text style={styles.actionButtonText}>View</Text>
-                    </TouchableOpacity>
-                  </View>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.viewButton]}
+                        onPress={() => router.push(`/lead-detail?id=${lead.id}`)}
+                      >
+                        <MaterialCommunityIcons name="eye" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>View</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </Card.Content>
               </Card>
             ))
@@ -284,6 +423,31 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     elevation: 2,
+  },
+  actionBar: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  selectionControls: {
+    backgroundColor: '#E0F2F1',
+    padding: 16,
+    gap: 12,
+  },
+  selectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectionText: {
+    color: '#00796B',
+    fontWeight: 'bold',
+  },
+  bulkActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bulkButton: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -338,11 +502,6 @@ const styles = StyleSheet.create({
   },
   leadCity: {
     color: '#757575',
-    marginTop: 4,
-  },
-  leadPremium: {
-    color: '#009688',
-    fontWeight: 'bold',
     marginTop: 4,
   },
   followupDate: {
