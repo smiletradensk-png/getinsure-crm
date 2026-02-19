@@ -6,13 +6,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
 import {
   Text,
   TextInput,
   Button,
-  SegmentedButtons,
   ActivityIndicator,
+  RadioButton,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,21 +23,80 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
+const PRODUCTS = [
+  'Whole Life',
+  'Child Plan',
+  'Retirement Plan',
+  'Kanyadaan Plan',
+  'Health Insurance',
+  'Motor Insurance',
+  'Travel Insurance',
+  'Home Insurance',
+  'Corporate Insurance',
+  'ULIP',
+  'Endowment',
+  'SIP',
+  'Mutual Fund Lumpsum',
+  'General Insurance',
+  'Others',
+];
+
+const STATUSES = [
+  'New',
+  'Interested',
+  'Not Interested',
+  'Follow-up',
+  'Pipeline',
+  'Closed',
+];
+
+const SOURCES = [
+  'Facebook Ads',
+  'Instagram',
+  'Google Ads',
+  'Referral',
+  'Existing Client',
+  'Website Form',
+  'Walk-in',
+  'WhatsApp Enquiry',
+  'Other',
+];
+
+const FOLLOWUP_TYPES = [
+  'WhatsApp',
+  'Call',
+  'Meeting',
+  'Video Call',
+  'Message',
+  'Email',
+  'Visit',
+];
+
 export default function AddLeadScreen() {
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
-  const [product, setProduct] = useState('Life');
+  const [product, setProduct] = useState('Whole Life');
   const [status, setStatus] = useState('New');
   const [source, setSource] = useState('Walk-in');
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
   const [nextFollowupDate, setNextFollowupDate] = useState('');
-  const [nextFollowupType, setNextFollowupType] = useState('Call');
+  const [nextFollowupType, setNextFollowupType] = useState('WhatsApp');
   const [loading, setLoading] = useState(false);
+
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showFollowupTypeModal, setShowFollowupTypeModal] = useState(false);
 
   const handleSubmit = async () => {
     if (!name || !mobile) {
       Alert.alert('Error', 'Please fill in Name and Mobile fields');
+      return;
+    }
+
+    if (mobile.length !== 10) {
+      Alert.alert('Error', 'Mobile number must be 10 digits');
       return;
     }
 
@@ -78,6 +139,52 @@ export default function AddLeadScreen() {
     }
   };
 
+  const renderPickerModal = (
+    visible: boolean,
+    onClose: () => void,
+    options: string[],
+    selectedValue: string,
+    onSelect: (value: string) => void,
+    title: string
+  ) => (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text variant="titleLarge" style={styles.modalTitle}>
+            {title}
+          </Text>
+          <ScrollView style={styles.optionsList}>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.optionItem}
+                onPress={() => {
+                  onSelect(option);
+                  onClose();
+                }}
+              >
+                <Text variant="bodyLarge" style={styles.optionText}>
+                  {option}
+                </Text>
+                <RadioButton
+                  value={option}
+                  status={selectedValue === option ? 'checked' : 'unchecked'}
+                  onPress={() => {
+                    onSelect(option);
+                    onClose();
+                  }}
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Button mode="outlined" onPress={onClose} style={styles.closeButton} textColor="#009688">
+            Close
+          </Button>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -110,59 +217,49 @@ export default function AddLeadScreen() {
             />
 
             <TextInput
-              label="Mobile *"
+              label="Mobile (10 Digits) *"
               value={mobile}
               onChangeText={setMobile}
               mode="outlined"
               style={styles.input}
               keyboardType="phone-pad"
+              maxLength={10}
               outlineColor="#009688"
               activeOutlineColor="#009688"
             />
 
             <Text variant="labelLarge" style={styles.label}>
-              Product
+              Product *
             </Text>
-            <SegmentedButtons
-              value={product}
-              onValueChange={setProduct}
-              buttons={[
-                { value: 'Life', label: 'Life' },
-                { value: 'Health', label: 'Health' },
-                { value: 'Motor', label: 'Motor' },
-                { value: 'Investment', label: 'Investment' },
-              ]}
-              style={styles.segmented}
-            />
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowProductModal(true)}
+            >
+              <Text style={styles.pickerButtonText}>{product}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={24} color="#009688" />
+            </TouchableOpacity>
 
             <Text variant="labelLarge" style={styles.label}>
-              Status
+              Status *
             </Text>
-            <SegmentedButtons
-              value={status}
-              onValueChange={setStatus}
-              buttons={[
-                { value: 'New', label: 'New' },
-                { value: 'Contacted', label: 'Contacted' },
-                { value: 'Interested', label: 'Interested' },
-              ]}
-              style={styles.segmented}
-            />
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowStatusModal(true)}
+            >
+              <Text style={styles.pickerButtonText}>{status}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={24} color="#009688" />
+            </TouchableOpacity>
 
             <Text variant="labelLarge" style={styles.label}>
-              Source
+              Source *
             </Text>
-            <SegmentedButtons
-              value={source}
-              onValueChange={setSource}
-              buttons={[
-                { value: 'Walk-in', label: 'Walk-in' },
-                { value: 'Reference', label: 'Reference' },
-                { value: 'Online', label: 'Online' },
-                { value: 'Other', label: 'Other' },
-              ]}
-              style={styles.segmented}
-            />
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowSourceModal(true)}
+            >
+              <Text style={styles.pickerButtonText}>{source}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={24} color="#009688" />
+            </TouchableOpacity>
 
             <TextInput
               label="City"
@@ -188,17 +285,13 @@ export default function AddLeadScreen() {
             <Text variant="labelLarge" style={styles.label}>
               Next Follow-up Type
             </Text>
-            <SegmentedButtons
-              value={nextFollowupType}
-              onValueChange={setNextFollowupType}
-              buttons={[
-                { value: 'Call', label: 'Call' },
-                { value: 'WhatsApp', label: 'WhatsApp' },
-                { value: 'Meeting', label: 'Meeting' },
-                { value: 'Email', label: 'Email' },
-              ]}
-              style={styles.segmented}
-            />
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowFollowupTypeModal(true)}
+            >
+              <Text style={styles.pickerButtonText}>{nextFollowupType}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={24} color="#009688" />
+            </TouchableOpacity>
 
             <TextInput
               label="Notes"
@@ -220,7 +313,7 @@ export default function AddLeadScreen() {
               disabled={loading}
               buttonColor="#009688"
             >
-              {loading ? 'Adding Lead...' : 'Add Lead'}
+              {loading ? 'Adding Lead...' : 'Save New Lead'}
             </Button>
 
             <Button
@@ -234,6 +327,46 @@ export default function AddLeadScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Product Modal */}
+      {renderPickerModal(
+        showProductModal,
+        () => setShowProductModal(false),
+        PRODUCTS,
+        product,
+        setProduct,
+        'Select Product'
+      )}
+
+      {/* Status Modal */}
+      {renderPickerModal(
+        showStatusModal,
+        () => setShowStatusModal(false),
+        STATUSES,
+        status,
+        setStatus,
+        'Select Status'
+      )}
+
+      {/* Source Modal */}
+      {renderPickerModal(
+        showSourceModal,
+        () => setShowSourceModal(false),
+        SOURCES,
+        source,
+        setSource,
+        'Select Source'
+      )}
+
+      {/* Follow-up Type Modal */}
+      {renderPickerModal(
+        showFollowupTypeModal,
+        () => setShowFollowupTypeModal(false),
+        FOLLOWUP_TYPES,
+        nextFollowupType,
+        setNextFollowupType,
+        'Next Follow-up Type'
+      )}
     </SafeAreaView>
   );
 }
@@ -270,11 +403,23 @@ const styles = StyleSheet.create({
   },
   label: {
     marginTop: 8,
-    marginBottom: 12,
+    marginBottom: 8,
     color: '#000000',
   },
-  segmented: {
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#009688',
+    borderRadius: 4,
+    padding: 16,
     marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#000000',
   },
   submitButton: {
     marginTop: 16,
@@ -284,5 +429,42 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 32,
     paddingVertical: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    textAlign: 'center',
+    fontWeight: 'bold',
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  optionsList: {
+    maxHeight: 400,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  optionText: {
+    flex: 1,
+    color: '#000000',
+  },
+  closeButton: {
+    margin: 16,
   },
 });
