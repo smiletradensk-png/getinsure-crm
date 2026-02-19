@@ -118,24 +118,35 @@ export default function LeadsScreen() {
   };
 
   const handleBulkWhatsApp = () => {
+    setShowBulkWhatsAppModal(true);
+  };
+
+  const sendBulkWhatsApp = () => {
     const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
-    const mobiles = selectedLeadsData.map(lead => lead.mobile).join(',');
-    const message = encodeURIComponent('Hello from GETINSURE CRM');
     
     Alert.alert(
-      'Bulk WhatsApp',
-      `Send WhatsApp message to ${selectedLeads.size} lead(s)?`,
+      'Start Bulk WhatsApp',
+      `Send messages to ${selectedLeads.size} lead(s)?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Send',
           onPress: () => {
-            selectedLeadsData.forEach(lead => {
+            selectedLeadsData.forEach((lead, index) => {
+              const personalizedMessage = bulkMessage.replace(/\[Name\]/g, lead.name);
+              const encodedMessage = encodeURIComponent(personalizedMessage);
               const cleanMobile = lead.mobile.replace(/[^0-9]/g, '');
+              
               setTimeout(() => {
-                Linking.openURL(`https://wa.me/91${cleanMobile}?text=${message}`);
-              }, 500);
+                Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
+              }, index * 1000); // 1 second delay between each message
             });
+            
+            setShowBulkWhatsAppModal(false);
+            setSelectionMode(false);
+            setSelectedLeads(new Set());
+            
+            Alert.alert('Success', `Bulk WhatsApp started for ${selectedLeads.size} lead(s)`);
           },
         },
       ]
