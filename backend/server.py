@@ -232,15 +232,6 @@ async def get_followups(filter: Optional[str] = None):
 async def get_reports():
     all_leads = await db.leads.find().to_list(1000)
     
-    total_business_premium = sum(lead.get('premium_amount', 0) for lead in all_leads if lead.get('status') == 'Closed')
-    
-    # Monthly business (current month)
-    current_month = datetime.utcnow().strftime("%Y-%m")
-    monthly_business = sum(
-        lead.get('premium_amount', 0) for lead in all_leads 
-        if lead.get('status') == 'Closed' and current_month in lead.get('expected_closing_month', '')
-    )
-    
     total_leads = len(all_leads)
     closed_leads = len([l for l in all_leads if l.get('status') == 'Closed'])
     
@@ -261,8 +252,6 @@ async def get_reports():
             source_performance[source]['closed'] += 1
     
     return {
-        "total_business_premium": total_business_premium,
-        "monthly_business": monthly_business,
         "closing_ratio": closing_ratio,
         "lead_conversion": lead_conversion,
         "source_performance": source_performance
