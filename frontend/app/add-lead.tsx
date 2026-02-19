@@ -54,10 +54,9 @@ export default function AddLeadScreen() {
           status,
           source,
           city,
-          premium_amount: parseFloat(premiumAmount) || 0,
-          expected_closing_month: expectedClosingMonth,
           notes,
           next_followup_date: nextFollowupDate || null,
+          next_followup_type: nextFollowupType,
         }),
       });
 
