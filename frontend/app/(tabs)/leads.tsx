@@ -397,6 +397,86 @@ export default function LeadsScreen() {
         </View>
       </ScrollView>
 
+      {/* Bulk WhatsApp Modal */}
+      <Modal
+        visible={showBulkWhatsAppModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBulkWhatsAppModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.bulkWhatsAppModal}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleLarge" style={styles.modalTitle}>
+                Bulk WhatsApp Message
+              </Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setShowBulkWhatsAppModal(false)}
+              />
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              <Text variant="labelLarge" style={styles.modalLabel}>
+                Recipients ({selectedLeads.size} leads selected)
+              </Text>
+              <View style={styles.recipientsList}>
+                {leads
+                  .filter(lead => selectedLeads.has(lead.id))
+                  .map(lead => (
+                    <Chip key={lead.id} style={styles.recipientChip}>
+                      {lead.name}
+                    </Chip>
+                  ))}
+              </View>
+
+              <Text variant="labelLarge" style={styles.modalLabel}>
+                Message Template
+              </Text>
+              <Text variant="bodySmall" style={styles.helpText}>
+                Use [Name] to automatically insert lead's name
+              </Text>
+              <TextInput
+                value={bulkMessage}
+                onChangeText={setBulkMessage}
+                mode="outlined"
+                multiline
+                numberOfLines={6}
+                style={styles.messageInput}
+                outlineColor="#009688"
+                activeOutlineColor="#009688"
+                placeholder="Hi [Name], Your insurance quote is ready!"
+              />
+
+              <Text variant="bodySmall" style={styles.noteText}>
+                Note: Messages will be sent one by one with 1 second delay between each message to avoid blocking.
+              </Text>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setShowBulkWhatsAppModal(false)}
+                style={styles.modalButton}
+                textColor="#009688"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={sendBulkWhatsApp}
+                style={styles.modalButton}
+                buttonColor="#25D366"
+                icon="whatsapp"
+              >
+                Start Bulk WhatsApp
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <FAB
         icon="plus"
         style={styles.fab}
