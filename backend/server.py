@@ -300,7 +300,7 @@ async def export_data(format: str):
         output = io.StringIO()
         if leads:
             fieldnames = ['id', 'name', 'mobile', 'product', 'status', 'source', 'city', 
-                         'premium_amount', 'expected_closing_month', 'notes', 'next_followup_date',
+                         'notes', 'next_followup_date', 'next_followup_type',
                          'created_at', 'updated_at']
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
