@@ -28,6 +28,8 @@ export default function LeadsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [showBulkWhatsAppModal, setShowBulkWhatsAppModal] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('Hi [Name], Your insurance quote is ready!');
 
   const fetchLeads = async () => {
     try {
