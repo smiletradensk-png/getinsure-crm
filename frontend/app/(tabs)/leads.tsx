@@ -661,6 +661,40 @@ const styles = StyleSheet.create({
   searchBar: {
     elevation: 2,
   },
+  filterContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  filterLabel: {
+    color: '#757575',
+    marginBottom: 8,
+  },
+  filterScroll: {
+    marginBottom: 0,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  filterChipActive: {
+    backgroundColor: '#009688',
+    borderColor: '#009688',
+  },
+  filterChipText: {
+    color: '#757575',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
   actionBar: {
     paddingHorizontal: 16,
     paddingBottom: 8,
