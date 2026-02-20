@@ -33,12 +33,15 @@ export default function LeadsScreen() {
   const [bulkMessage, setBulkMessage] = useState('Hi [Name], Your insurance quote is ready!');
   const [isSending, setIsSending] = useState(false);
   const [sendingProgress, setSendingProgress] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
   const [messageTemplates] = useState([
     'Hi [Name], Your insurance quote is ready!',
     'Hello [Name], This is a reminder about your insurance policy.',
     'Dear [Name], We have a special offer for you!',
     'Hi [Name], Thank you for your interest in our insurance plans.',
   ]);
+
+  const statuses = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
 
   const fetchLeads = async () => {
     try {
