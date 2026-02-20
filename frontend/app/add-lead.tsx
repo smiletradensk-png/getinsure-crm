@@ -138,37 +138,49 @@ export default function AddLeadScreen() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/leads`, {
-        method: 'POST',
+      const leadData = {
+        name,
+        mobile,
+        product,
+        status,
+        source,
+        city,
+        notes,
+        next_followup_date: nextFollowupDate || null,
+        next_followup_type: nextFollowupType,
+      };
+
+      const url = isEditMode 
+        ? `${BACKEND_URL}/api/leads/${id}`
+        : `${BACKEND_URL}/api/leads`;
+      
+      const method = isEditMode ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name,
-          mobile,
-          product,
-          status,
-          source,
-          city,
-          notes,
-          next_followup_date: nextFollowupDate || null,
-          next_followup_type: nextFollowupType,
-        }),
+        body: JSON.stringify(leadData),
       });
 
       if (response.ok) {
-        Alert.alert('Success', 'Lead added successfully', [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]);
+        Alert.alert(
+          'Success', 
+          isEditMode ? 'Lead updated successfully' : 'Lead added successfully', 
+          [
+            {
+              text: 'OK',
+              onPress: () => router.back(),
+            },
+          ]
+        );
       } else {
-        Alert.alert('Error', 'Failed to add lead');
+        Alert.alert('Error', isEditMode ? 'Failed to update lead' : 'Failed to add lead');
       }
     } catch (error) {
-      console.error('Error adding lead:', error);
-      Alert.alert('Error', 'Failed to add lead');
+      console.error('Error saving lead:', error);
+      Alert.alert('Error', isEditMode ? 'Failed to update lead' : 'Failed to add lead');
     } finally {
       setLoading(false);
     }
