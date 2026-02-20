@@ -457,6 +457,23 @@ export default function LeadsScreen() {
               </View>
 
               <Text variant="labelLarge" style={styles.modalLabel}>
+                Quick Templates
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templatesScroll}>
+                {messageTemplates.map((template, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.templateChip}
+                    onPress={() => setBulkMessage(template)}
+                  >
+                    <Text style={styles.templateText} numberOfLines={2}>
+                      {template}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text variant="labelLarge" style={styles.modalLabel}>
                 Message Template
               </Text>
               <Text variant="bodySmall" style={styles.helpText}>
@@ -472,11 +489,30 @@ export default function LeadsScreen() {
                 outlineColor="#009688"
                 activeOutlineColor="#009688"
                 placeholder="Hi [Name], Your insurance quote is ready!"
+                disabled={isSending}
               />
 
-              <Text variant="bodySmall" style={styles.noteText}>
-                Note: Messages will be sent one by one with 1 second delay between each message to avoid blocking.
-              </Text>
+              {isSending && (
+                <View style={styles.progressContainer}>
+                  <Text variant="bodyMedium" style={styles.progressText}>
+                    Sending... {Math.round(sendingProgress)}%
+                  </Text>
+                  <ProgressBar
+                    progress={sendingProgress / 100}
+                    color="#25D366"
+                    style={styles.progressBar}
+                  />
+                  <Text variant="bodySmall" style={styles.progressNote}>
+                    WhatsApp is opening automatically for each lead
+                  </Text>
+                </View>
+              )}
+
+              {!isSending && (
+                <Text variant="bodySmall" style={styles.noteText}>
+                  ⚡ Messages will be sent automatically one by one with 0.3s interval
+                </Text>
+              )}
             </ScrollView>
 
             <View style={styles.modalActions}>
