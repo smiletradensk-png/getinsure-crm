@@ -73,6 +73,9 @@ const FOLLOWUP_TYPES = [
 ];
 
 export default function AddLeadScreen() {
+  const { id, mode } = useLocalSearchParams();
+  const isEditMode = mode === 'edit' && id;
+
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [product, setProduct] = useState('Whole Life');
@@ -83,11 +86,43 @@ export default function AddLeadScreen() {
   const [nextFollowupDate, setNextFollowupDate] = useState('');
   const [nextFollowupType, setNextFollowupType] = useState('WhatsApp');
   const [loading, setLoading] = useState(false);
+  const [fetchingLead, setFetchingLead] = useState(false);
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFollowupTypeModal, setShowFollowupTypeModal] = useState(false);
+
+  // Fetch lead data if in edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      fetchLeadData();
+    }
+  }, [isEditMode]);
+
+  const fetchLeadData = async () => {
+    setFetchingLead(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/leads/${id}`);
+      const data = await response.json();
+      
+      // Pre-fill form with existing data
+      setName(data.name || '');
+      setMobile(data.mobile || '');
+      setProduct(data.product || 'Whole Life');
+      setStatus(data.status || 'New');
+      setSource(data.source || 'Walk-in');
+      setCity(data.city || '');
+      setNotes(data.notes || '');
+      setNextFollowupDate(data.next_followup_date || '');
+      setNextFollowupType(data.next_followup_type || 'WhatsApp');
+    } catch (error) {
+      console.error('Error fetching lead:', error);
+      Alert.alert('Error', 'Failed to load lead data');
+    } finally {
+      setFetchingLead(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name || !mobile) {
