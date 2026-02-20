@@ -454,35 +454,38 @@ export default function LeadsScreen() {
                   {!selectionMode && (
                     <View style={styles.actionButtons}>
                       <TouchableOpacity
-                        style={[styles.actionButton, styles.callButton]}
+                        style={styles.compactButton}
                         onPress={() => handleCall(lead.mobile)}
                       >
-                        <MaterialCommunityIcons name="phone" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Call</Text>
+                        <MaterialCommunityIcons name="phone" size={18} color="#4CAF50" />
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[styles.actionButton, styles.whatsappButton]}
+                        style={styles.compactButton}
                         onPress={() => handleWhatsApp(lead.mobile)}
                       >
-                        <MaterialCommunityIcons name="whatsapp" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>WhatsApp</Text>
+                        <MaterialCommunityIcons name="whatsapp" size={18} color="#25D366" />
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[styles.actionButton, styles.editButton]}
+                        style={styles.compactButton}
                         onPress={() => router.push(`/add-lead?id=${lead.id}&mode=edit`)}
                       >
-                        <MaterialCommunityIcons name="pencil" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Edit</Text>
+                        <MaterialCommunityIcons name="pencil" size={18} color="#FF9800" />
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[styles.actionButton, styles.viewButton]}
+                        style={styles.compactButton}
                         onPress={() => router.push(`/lead-detail?id=${lead.id}`)}
                       >
-                        <MaterialCommunityIcons name="eye" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>View</Text>
+                        <MaterialCommunityIcons name="eye" size={18} color="#2196F3" />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.compactButton}
+                        onPress={() => setShowStatusModal(true, lead)}
+                      >
+                        <MaterialCommunityIcons name="swap-horizontal" size={18} color="#9C27B0" />
                       </TouchableOpacity>
                     </View>
                   )}
