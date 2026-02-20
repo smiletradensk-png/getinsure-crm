@@ -366,7 +366,7 @@ export default function AddLeadScreen() {
               disabled={loading}
               buttonColor="#009688"
             >
-              {loading ? 'Adding Lead...' : 'Save New Lead'}
+              {loading ? (isEditMode ? 'Updating...' : 'Adding Lead...') : (isEditMode ? 'Update Lead' : 'Save New Lead')}
             </Button>
 
             <Button
@@ -380,6 +380,7 @@ export default function AddLeadScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      )}
 
       {/* Product Modal */}
       {renderPickerModal(
