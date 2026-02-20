@@ -253,7 +253,7 @@ export default function LeadsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            try:
+            try {
               await fetch(`${BACKEND_URL}/api/leads/${leadId}`, {
                 method: 'DELETE',
               });
