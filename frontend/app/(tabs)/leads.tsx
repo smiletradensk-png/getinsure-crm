@@ -68,17 +68,38 @@ export default function LeadsScreen() {
 
   const onSearchChange = (query: string) => {
     setSearchQuery(query);
-    if (query === '') {
-      setFilteredLeads(leads);
-    } else {
-      const filtered = leads.filter(
-        (lead) =>
-          lead.name.toLowerCase().includes(query.toLowerCase()) ||
-          lead.mobile.includes(query) ||
-          lead.city.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredLeads(filtered);
+    applyFilters(query, statusFilter);
+  };
+
+  const applyFilters = (search: string, status: string) => {
+    let filtered = leads;
+
+    // Apply status filter
+    if (status !== 'All') {
+      filtered = filtered.filter(lead => lead.status === status);
     }
+
+    // Apply search filter
+    if (search !== '') {
+      filtered = filtered.filter(
+        (lead) =>
+          lead.name.toLowerCase().includes(search.toLowerCase()) ||
+          lead.mobile.includes(search) ||
+          lead.city.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    setFilteredLeads(filtered);
+  };
+
+  const handleStatusFilter = (status: string) => {
+    setStatusFilter(status);
+    applyFilters(searchQuery, status);
+  };
+
+  const getStatusCount = (status: string) => {
+    if (status === 'All') return leads.length;
+    return leads.filter(lead => lead.status === status).length;
   };
 
   const toggleSelection = (leadId: string) => {
