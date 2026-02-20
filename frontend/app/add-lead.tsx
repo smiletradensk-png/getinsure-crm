@@ -243,11 +243,17 @@ export default function AddLeadScreen() {
           style={styles.backButton}
         />
         <Text variant="headlineMedium" style={styles.headerTitle}>
-          Add New Lead
+          {isEditMode ? 'Edit Lead' : 'Add New Lead'}
         </Text>
       </View>
 
-      <KeyboardAvoidingView
+      {fetchingLead ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#009688" />
+          <Text style={styles.loadingText}>Loading lead data...</Text>
+        </View>
+      ) : (
+        <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
