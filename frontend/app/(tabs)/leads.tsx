@@ -253,7 +253,7 @@ export default function LeadsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            try {
+            try:
               await fetch(`${BACKEND_URL}/api/leads/${leadId}`, {
                 method: 'DELETE',
               });
@@ -265,6 +265,35 @@ export default function LeadsScreen() {
         },
       ]
     );
+  };
+
+  const handleQuickStatusUpdate = async (newStatus: string) => {
+    if (!selectedLeadForStatus) return;
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/leads/${selectedLeadForStatus.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...selectedLeadForStatus,
+          status: newStatus,
+        }),
+      });
+
+      if (response.ok) {
+        setShowQuickStatusModal(false);
+        setSelectedLeadForStatus(null);
+        fetchLeads();
+        Alert.alert('Success', `Status updated to ${newStatus}`);
+      } else {
+        Alert.alert('Error', 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
   if (loading) {
