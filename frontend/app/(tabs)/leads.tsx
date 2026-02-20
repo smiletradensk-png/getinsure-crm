@@ -30,6 +30,14 @@ export default function LeadsScreen() {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [showBulkWhatsAppModal, setShowBulkWhatsAppModal] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('Hi [Name], Your insurance quote is ready!');
+  const [isSending, setIsSending] = useState(false);
+  const [sendingProgress, setSendingProgress] = useState(0);
+  const [messageTemplates] = useState([
+    'Hi [Name], Your insurance quote is ready!',
+    'Hello [Name], This is a reminder about your insurance policy.',
+    'Dear [Name], We have a special offer for you!',
+    'Hi [Name], Thank you for your interest in our insurance plans.',
+  ]);
 
   const fetchLeads = async () => {
     try {
