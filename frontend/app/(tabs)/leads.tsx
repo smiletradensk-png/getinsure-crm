@@ -520,8 +520,25 @@ export default function LeadsScreen() {
               )}
 
               {!isSending && (
+                <View style={styles.quickModeInfo}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={24} color="#FF9800" />
+                  <View style={styles.quickModeTextContainer}>
+                    <Text variant="labelLarge" style={styles.quickModeTitle}>
+                      Quick Send Mode
+                    </Text>
+                    <Text variant="bodySmall" style={styles.quickModeDesc}>
+                      1. WhatsApp opens with pre-filled message{'\n'}
+                      2. Just tap Send button{'\n'}
+                      3. Come back to app{'\n'}
+                      4. Next lead opens automatically
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {!isSending && (
                 <Text variant="bodySmall" style={styles.noteText}>
-                  ⚡ Messages will be sent automatically one by one with 0.3s interval
+                  ⚡ 3 seconds between each lead for smooth workflow
                 </Text>
               )}
             </ScrollView>
