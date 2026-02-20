@@ -521,6 +521,7 @@ export default function LeadsScreen() {
                 onPress={() => setShowBulkWhatsAppModal(false)}
                 style={styles.modalButton}
                 textColor="#009688"
+                disabled={isSending}
               >
                 Cancel
               </Button>
@@ -529,9 +530,11 @@ export default function LeadsScreen() {
                 onPress={sendBulkWhatsApp}
                 style={styles.modalButton}
                 buttonColor="#25D366"
-                icon="whatsapp"
+                icon={isSending ? "progress-clock" : "whatsapp"}
+                disabled={isSending}
+                loading={isSending}
               >
-                Start Bulk WhatsApp
+                {isSending ? 'Sending...' : 'Start Auto Send'}
               </Button>
             </View>
           </View>
