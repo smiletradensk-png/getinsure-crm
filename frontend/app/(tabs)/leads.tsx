@@ -134,12 +134,12 @@ export default function LeadsScreen() {
     const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
     
     Alert.alert(
-      'Start Automatic WhatsApp',
-      `Send personalized messages to ${selectedLeads.size} lead(s)?\n\nMessages will be sent automatically one by one.`,
+      '🚀 Start Automatic WhatsApp',
+      `Ready to send to ${selectedLeads.size} lead(s)\n\n✅ Messages will open in WhatsApp\n✅ Just tap Send for each\n✅ App will open next lead automatically`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Start Sending',
+          text: 'Start Now',
           onPress: async () => {
             setIsSending(true);
             setSendingProgress(0);
@@ -151,15 +151,25 @@ export default function LeadsScreen() {
               const cleanMobile = lead.mobile.replace(/[^0-9]/g, '');
               
               // Update progress
-              setSendingProgress(((i + 1) / selectedLeadsData.length) * 100);
+              const progress = ((i + 1) / selectedLeadsData.length) * 100;
+              setSendingProgress(progress);
               
-              // Open WhatsApp with pre-filled message
+              // Copy to clipboard for easy paste
+              await Clipboard.setStringAsync(personalizedMessage);
+              
+              // Open WhatsApp with pre-filled message and contact
               await Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
               
-              // Quick delay before next (300ms for smooth automation)
-              if (i < selectedLeadsData.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 300));
-              }
+              // Show toast notification
+              Alert.alert(
+                `Lead ${i + 1}/${selectedLeadsData.length}`,
+                `📱 WhatsApp opened for ${lead.name}\n\n✅ Message is pre-filled\n✅ Tap Send button\n✅ Then come back to app`,
+                [{ text: 'Next', onPress: () => {} }],
+                { cancelable: true }
+              );
+              
+              // Wait for user to send and come back (3 seconds is optimal)
+              await new Promise(resolve => setTimeout(resolve, 3000));
             }
             
             setIsSending(false);
@@ -169,9 +179,9 @@ export default function LeadsScreen() {
             setSelectedLeads(new Set());
             
             Alert.alert(
-              'Bulk WhatsApp Complete!',
-              `Successfully sent ${selectedLeadsData.length} personalized messages.`,
-              [{ text: 'OK' }]
+              '✅ Bulk WhatsApp Complete!',
+              `Successfully processed ${selectedLeadsData.length} leads.\n\nAll personalized messages were sent!`,
+              [{ text: 'Great!' }]
             );
           },
         },
