@@ -470,6 +470,14 @@ export default function LeadsScreen() {
                       </TouchableOpacity>
 
                       <TouchableOpacity
+                        style={[styles.actionButton, styles.editButton]}
+                        onPress={() => router.push(`/add-lead?id=${lead.id}&mode=edit`)}
+                      >
+                        <MaterialCommunityIcons name="pencil" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>Edit</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
                         style={[styles.actionButton, styles.viewButton]}
                         onPress={() => router.push(`/lead-detail?id=${lead.id}`)}
                       >
