@@ -816,6 +816,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  quickModeInfo: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF3E0',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FFB74D',
+    gap: 12,
+  },
+  quickModeTextContainer: {
+    flex: 1,
+  },
+  quickModeTitle: {
+    color: '#E65100',
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  quickModeDesc: {
+    color: '#F57C00',
+    lineHeight: 20,
+  },
   noteText: {
     color: '#FF9800',
     fontStyle: 'italic',
