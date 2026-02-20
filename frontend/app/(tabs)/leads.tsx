@@ -741,12 +741,52 @@ const styles = StyleSheet.create({
   recipientChip: {
     height: 32,
   },
+  templatesScroll: {
+    marginBottom: 16,
+  },
+  templateChip: {
+    backgroundColor: '#E0F2F1',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginRight: 12,
+    maxWidth: 250,
+    borderWidth: 1,
+    borderColor: '#009688',
+  },
+  templateText: {
+    color: '#00796B',
+    fontSize: 13,
+  },
   helpText: {
     color: '#757575',
     marginBottom: 8,
   },
   messageInput: {
     marginBottom: 16,
+  },
+  progressContainer: {
+    marginTop: 16,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  progressText: {
+    color: '#2E7D32',
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  progressNote: {
+    color: '#558B2F',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   noteText: {
     color: '#FF9800',
