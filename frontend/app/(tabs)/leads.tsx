@@ -485,7 +485,10 @@ export default function LeadsScreen() {
 
                       <TouchableOpacity
                         style={styles.compactButton}
-                        onPress={() => setShowStatusModal(true, lead)}
+                        onPress={() => {
+                          setSelectedLeadForStatus(lead);
+                          setShowQuickStatusModal(true);
+                        }}
                       >
                         <MaterialCommunityIcons name="swap-horizontal" size={18} color="#9C27B0" />
                       </TouchableOpacity>
