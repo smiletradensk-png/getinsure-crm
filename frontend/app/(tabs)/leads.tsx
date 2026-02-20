@@ -129,32 +129,49 @@ export default function LeadsScreen() {
     setShowBulkWhatsAppModal(true);
   };
 
-  const sendBulkWhatsApp = () => {
+  const sendBulkWhatsApp = async () => {
     const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
     
     Alert.alert(
-      'Start Bulk WhatsApp',
-      `Send messages to ${selectedLeads.size} lead(s)?`,
+      'Start Automatic WhatsApp',
+      `Send personalized messages to ${selectedLeads.size} lead(s)?\n\nMessages will be sent automatically one by one.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send',
-          onPress: () => {
-            selectedLeadsData.forEach((lead, index) => {
+          text: 'Start Sending',
+          onPress: async () => {
+            setIsSending(true);
+            setSendingProgress(0);
+            
+            for (let i = 0; i < selectedLeadsData.length; i++) {
+              const lead = selectedLeadsData[i];
               const personalizedMessage = bulkMessage.replace(/\[Name\]/g, lead.name);
               const encodedMessage = encodeURIComponent(personalizedMessage);
               const cleanMobile = lead.mobile.replace(/[^0-9]/g, '');
               
-              setTimeout(() => {
-                Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
-              }, index * 1000); // 1 second delay between each message
-            });
+              // Update progress
+              setSendingProgress(((i + 1) / selectedLeadsData.length) * 100);
+              
+              // Open WhatsApp with pre-filled message
+              await Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
+              
+              // Quick delay before next (300ms for smooth automation)
+              if (i < selectedLeadsData.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+              }
+            }
             
+            setIsSending(false);
+            setSendingProgress(0);
             setShowBulkWhatsAppModal(false);
             setSelectionMode(false);
             setSelectedLeads(new Set());
             
-            Alert.alert('Success', `Bulk WhatsApp started for ${selectedLeads.size} lead(s)`);
+            Alert.alert(
+              'Bulk WhatsApp Complete!',
+              `Successfully sent ${selectedLeadsData.length} personalized messages.`,
+              [{ text: 'OK' }]
+            );
           },
         },
       ]
