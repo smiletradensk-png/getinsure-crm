@@ -34,6 +34,8 @@ export default function LeadsScreen() {
   const [isSending, setIsSending] = useState(false);
   const [sendingProgress, setSendingProgress] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [showQuickStatusModal, setShowQuickStatusModal] = useState(false);
+  const [selectedLeadForStatus, setSelectedLeadForStatus] = useState<Lead | null>(null);
   const [messageTemplates] = useState([
     'Hi [Name], Your insurance quote is ready!',
     'Hello [Name], This is a reminder about your insurance policy.',
