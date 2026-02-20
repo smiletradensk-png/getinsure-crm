@@ -808,6 +808,9 @@ const styles = StyleSheet.create({
   whatsappButton: {
     backgroundColor: '#25D366',
   },
+  editButton: {
+    backgroundColor: '#FF9800',
+  },
   viewButton: {
     backgroundColor: '#2196F3',
   },
