@@ -293,6 +293,34 @@ export default function LeadsScreen() {
         />
       </View>
 
+      {/* Status Filter */}
+      <View style={styles.filterContainer}>
+        <Text variant="labelMedium" style={styles.filterLabel}>
+          Filter by Status:
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          {statuses.map((status) => (
+            <TouchableOpacity
+              key={status}
+              style={[
+                styles.filterChip,
+                statusFilter === status && styles.filterChipActive,
+              ]}
+              onPress={() => handleStatusFilter(status)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  statusFilter === status && styles.filterChipTextActive,
+                ]}
+              >
+                {status} ({getStatusCount(status)})
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       {/* Selection Mode Controls */}
       {selectionMode && (
         <View style={styles.selectionControls}>
