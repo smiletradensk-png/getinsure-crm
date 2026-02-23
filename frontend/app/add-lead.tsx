@@ -354,16 +354,18 @@ export default function AddLeadScreen() {
               activeOutlineColor="#009688"
             />
 
-            <TextInput
-              label="Next Follow-up Date (YYYY-MM-DD)"
-              value={nextFollowupDate}
-              onChangeText={setNextFollowupDate}
-              mode="outlined"
-              style={styles.input}
-              placeholder="2025-07-20"
-              outlineColor="#009688"
-              activeOutlineColor="#009688"
-            />
+            <Text variant="labelLarge" style={styles.label}>
+              Next Follow-up Date
+            </Text>
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowCalendar(true)}
+            >
+              <Text style={styles.datePickerText}>
+                {nextFollowupDate || 'Select Date (DD-MM-YYYY)'}
+              </Text>
+              <MaterialCommunityIcons name="calendar" size={24} color="#009688" />
+            </TouchableOpacity>
 
             <Text variant="labelLarge" style={styles.label}>
               Next Follow-up Type
