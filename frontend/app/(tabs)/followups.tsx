@@ -156,6 +156,7 @@ export default function FollowupsScreen() {
                         style={[styles.followupDate, { color: getFollowupColor(lead.next_followup_date) }]}
                       >
                         {lead.next_followup_date}
+                        {lead.next_followup_time && ` at ${lead.next_followup_time}`}
                       </Text>
                     </View>
                   )}
