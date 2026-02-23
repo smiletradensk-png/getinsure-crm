@@ -517,6 +517,58 @@ export default function AddLeadScreen() {
           </View>
         </View>
       </Modal>
+      {/* Time Picker Modal */}
+      <Modal visible={showTimePicker} transparent animationType="slide">
+        <View style={styles.calendarModalOverlay}>
+          <View style={styles.calendarModalContent}>
+            <View style={styles.calendarHeader}>
+              <Text variant="titleLarge" style={styles.calendarTitle}>
+                Select Follow-up Time
+              </Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setShowTimePicker(false)}
+              />
+            </View>
+            <ScrollView style={styles.timeSlotContainer}>
+              {TIME_SLOTS.map((time) => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timeSlot,
+                    nextFollowupTime === time && styles.timeSlotSelected,
+                  ]}
+                  onPress={() => {
+                    setNextFollowupTime(time);
+                    setShowTimePicker(false);
+                  }}
+                >
+                  <MaterialCommunityIcons 
+                    name="clock-outline" 
+                    size={20} 
+                    color={nextFollowupTime === time ? '#FFFFFF' : '#009688'} 
+                  />
+                  <Text style={[
+                    styles.timeSlotText,
+                    nextFollowupTime === time && styles.timeSlotTextSelected,
+                  ]}>
+                    {time}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Button
+              mode="outlined"
+              onPress={() => setShowTimePicker(false)}
+              style={styles.calendarCloseButton}
+              textColor="#009688"
+            >
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
