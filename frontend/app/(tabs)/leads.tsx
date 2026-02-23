@@ -666,6 +666,84 @@ export default function LeadsScreen() {
         </View>
       </Modal>
 
+      {/* Quick Status Update Modal */}
+      <Modal
+        visible={showQuickStatusModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQuickStatusModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.quickStatusModal}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleLarge" style={styles.modalTitle}>
+                Update Lead Status
+              </Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setShowQuickStatusModal(false)}
+              />
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              {selectedLeadForStatus && (
+                <View style={styles.leadInfoInModal}>
+                  <Text variant="titleMedium" style={styles.leadNameInModal}>
+                    {selectedLeadForStatus.name}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.leadMobileInModal}>
+                    {selectedLeadForStatus.mobile}
+                  </Text>
+                  <Chip
+                    style={[styles.currentStatusChip, { backgroundColor: getStatusColor(selectedLeadForStatus.status) }]}
+                    textStyle={{ color: '#FFFFFF' }}
+                  >
+                    Current: {selectedLeadForStatus.status}
+                  </Chip>
+                </View>
+              )}
+
+              <Text variant="labelLarge" style={styles.statusModalLabel}>
+                Select New Status
+              </Text>
+
+              {statuses.filter(s => s !== 'All').map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[
+                    styles.statusOption,
+                    { borderLeftWidth: 4, borderLeftColor: getStatusColor(status) }
+                  ]}
+                  onPress={() => handleQuickStatusUpdate(status)}
+                >
+                  <View style={styles.statusOptionContent}>
+                    <MaterialCommunityIcons 
+                      name={status === 'Closed' ? 'check-circle' : status === 'Interested' ? 'star' : status === 'Pipeline' ? 'chart-line' : 'circle-outline'} 
+                      size={24} 
+                      color={getStatusColor(status)} 
+                    />
+                    <Text variant="titleMedium" style={styles.statusOptionText}>
+                      {status}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color="#BDBDBD" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Button
+              mode="outlined"
+              onPress={() => setShowQuickStatusModal(false)}
+              style={styles.statusModalCloseButton}
+              textColor="#009688"
+            >
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
+
       <FAB
         icon="plus"
         style={styles.fab}
