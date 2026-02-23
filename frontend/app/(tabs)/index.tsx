@@ -146,40 +146,57 @@ export default function DashboardScreen() {
 
           {/* Third Row */}
           <View style={styles.row}>
-            <Card style={[styles.card, styles.successCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.closed_leads || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Closed Leads
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/leads')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.successCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.closed_leads || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Closed Leads
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
 
-            <Card style={[styles.card, styles.secondaryCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.monthly_business_count || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Monthly Business
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/pipeline')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.secondaryCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.monthly_business_count || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Monthly Business
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
           </View>
 
           {/* Full Width Card */}
-          <Card style={[styles.fullCard, styles.primaryCard]}>
-            <Card.Content>
-              <Text variant="displayMedium" style={styles.cardNumber}>
-                {stats?.monthly_closing_ratio || 0}%
-              </Text>
-              <Text variant="bodyMedium" style={styles.cardLabel}>
-                Monthly Closing Ratio
-              </Text>
-            </Card.Content>
-          </Card>
+          <TouchableOpacity 
+            onPress={() => router.push('/settings')}
+            activeOpacity={0.7}
+          >
+            <Card style={[styles.fullCard, styles.primaryCard]}>
+              <Card.Content>
+                <Text variant="displayMedium" style={styles.cardNumber}>
+                  {stats?.monthly_closing_ratio || 0}%
+                </Text>
+                <Text variant="bodyMedium" style={styles.cardLabel}>
+                  Monthly Closing Ratio
+                </Text>
+              </Card.Content>
+            </Card>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
