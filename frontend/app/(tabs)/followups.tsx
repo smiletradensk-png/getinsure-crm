@@ -14,8 +14,8 @@ interface Lead {
   mobile: string;
   product: string;
   status: string;
-  premium_amount: number;
   next_followup_date?: string;
+  next_followup_time?: string;
 }
 
 export default function FollowupsScreen() {
