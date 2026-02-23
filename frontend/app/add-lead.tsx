@@ -671,6 +671,32 @@ const styles = StyleSheet.create({
   calendarCloseButton: {
     marginTop: 16,
   },
+  timeSlotContainer: {
+    maxHeight: 400,
+  },
+  timeSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  timeSlotSelected: {
+    backgroundColor: '#009688',
+    borderColor: '#009688',
+  },
+  timeSlotText: {
+    fontSize: 16,
+    color: '#000000',
+  },
+  timeSlotTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
   submitButton: {
     marginTop: 16,
     paddingVertical: 8,
