@@ -453,6 +453,45 @@ export default function AddLeadScreen() {
         setNextFollowupType,
         'Next Follow-up Type'
       )}
+
+      {/* Calendar Modal */}
+      <Modal visible={showCalendar} transparent animationType="slide">
+        <View style={styles.calendarModalOverlay}>
+          <View style={styles.calendarModalContent}>
+            <View style={styles.calendarHeader}>
+              <Text variant="titleLarge" style={styles.calendarTitle}>
+                Select Follow-up Date
+              </Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setShowCalendar(false)}
+              />
+            </View>
+            <Calendar
+              onDayPress={handleDateSelect}
+              markedDates={{
+                [getTodayDate()]: { selected: true, selectedColor: '#009688' },
+              }}
+              theme={{
+                todayTextColor: '#009688',
+                arrowColor: '#009688',
+                monthTextColor: '#009688',
+                textMonthFontWeight: 'bold',
+              }}
+              minDate={getTodayDate()}
+            />
+            <Button
+              mode="outlined"
+              onPress={() => setShowCalendar(false)}
+              style={styles.calendarCloseButton}
+              textColor="#009688"
+            >
+              Cancel
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
