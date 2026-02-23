@@ -93,6 +93,28 @@ export default function AddLeadScreen() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFollowupTypeModal, setShowFollowupTypeModal] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+
+  // Helper functions for date formatting
+  const formatDateToDDMMYYYY = (dateString: string) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
+  const formatDateToYYYYMMDD = (dateString: string) => {
+    if (!dateString) return '';
+    const [day, month, year] = dateString.split('-');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Fetch lead data if in edit mode
   useEffect(() => {
