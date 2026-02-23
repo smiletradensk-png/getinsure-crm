@@ -1077,4 +1077,56 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
   },
+  quickStatusModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  leadInfoInModal: {
+    backgroundColor: '#F5F5F5',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  leadNameInModal: {
+    fontWeight: 'bold',
+    color: '#000000',
+    marginBottom: 4,
+  },
+  leadMobileInModal: {
+    color: '#757575',
+    marginBottom: 8,
+  },
+  currentStatusChip: {
+    alignSelf: 'flex-start',
+  },
+  statusModalLabel: {
+    marginTop: 16,
+    marginBottom: 12,
+    color: '#000000',
+  },
+  statusOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginBottom: 8,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  statusOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statusOptionText: {
+    color: '#000000',
+  },
+  statusModalCloseButton: {
+    margin: 16,
+  },
 });
