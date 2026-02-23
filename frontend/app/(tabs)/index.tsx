@@ -238,6 +238,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 16,
   },
+  cardContainer: {
+    flex: 1,
+  },
   card: {
     flex: 1,
     elevation: 2,
