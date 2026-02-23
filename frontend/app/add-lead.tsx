@@ -373,6 +373,19 @@ export default function AddLeadScreen() {
             </TouchableOpacity>
 
             <Text variant="labelLarge" style={styles.label}>
+              Follow-up Time
+            </Text>
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Text style={styles.datePickerText}>
+                {nextFollowupTime || 'Select Time'}
+              </Text>
+              <MaterialCommunityIcons name="clock-outline" size={24} color="#009688" />
+            </TouchableOpacity>
+
+            <Text variant="labelLarge" style={styles.label}>
               Next Follow-up Type
             </Text>
             <TouchableOpacity
