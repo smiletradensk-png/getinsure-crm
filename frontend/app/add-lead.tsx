@@ -137,7 +137,8 @@ export default function AddLeadScreen() {
       setSource(data.source || 'Walk-in');
       setCity(data.city || '');
       setNotes(data.notes || '');
-      setNextFollowupDate(data.next_followup_date || '');
+      // Convert YYYY-MM-DD to DD-MM-YYYY for display
+      setNextFollowupDate(data.next_followup_date ? formatDateToDDMMYYYY(data.next_followup_date) : '');
       setNextFollowupType(data.next_followup_type || 'WhatsApp');
     } catch (error) {
       console.error('Error fetching lead:', error);
@@ -145,6 +146,12 @@ export default function AddLeadScreen() {
     } finally {
       setFetchingLead(false);
     }
+  };
+
+  const handleDateSelect = (day: any) => {
+    const selectedDate = day.dateString; // YYYY-MM-DD format
+    setNextFollowupDate(formatDateToDDMMYYYY(selectedDate));
+    setShowCalendar(false);
   };
 
   const handleSubmit = async () => {
