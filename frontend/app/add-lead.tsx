@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
+import { scheduleFollowupNotification, cancelAllLeadNotifications } from '../utils/notifications';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
