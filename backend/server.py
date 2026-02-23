@@ -54,6 +54,7 @@ class LeadCreate(BaseModel):
     city: Optional[str] = ""
     notes: Optional[str] = ""
     next_followup_date: Optional[str] = None
+    next_followup_time: Optional[str] = None
     next_followup_type: Optional[str] = "Call"
 
 class Lead(LeadCreate):
