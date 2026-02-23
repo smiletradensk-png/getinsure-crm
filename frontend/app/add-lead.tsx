@@ -86,6 +86,7 @@ export default function AddLeadScreen() {
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
   const [nextFollowupDate, setNextFollowupDate] = useState('');
+  const [nextFollowupTime, setNextFollowupTime] = useState('10:00');
   const [nextFollowupType, setNextFollowupType] = useState('WhatsApp');
   const [loading, setLoading] = useState(false);
   const [fetchingLead, setFetchingLead] = useState(false);
@@ -95,6 +96,7 @@ export default function AddLeadScreen() {
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFollowupTypeModal, setShowFollowupTypeModal] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Helper functions for date formatting
   const formatDateToDDMMYYYY = (dateString: string) => {
