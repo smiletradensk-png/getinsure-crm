@@ -72,52 +72,76 @@ export default function DashboardScreen() {
         <View style={styles.content}>
           {/* First Row */}
           <View style={styles.row}>
-            <Card style={[styles.card, styles.primaryCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.total_leads || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Total Leads
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/leads')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.primaryCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.total_leads || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Total Leads
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
 
-            <Card style={[styles.card, styles.warningCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.today_followups || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Today's Follow-ups
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/followups?filter=today')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.warningCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.today_followups || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Today's Follow-ups
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
           </View>
 
           {/* Second Row */}
           <View style={styles.row}>
-            <Card style={[styles.card, styles.dangerCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.overdue_followups || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Overdue Follow-ups
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/followups?filter=overdue')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.dangerCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.overdue_followups || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Overdue Follow-ups
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
 
-            <Card style={[styles.card, styles.infoCard]}>
-              <Card.Content>
-                <Text variant="displayMedium" style={styles.cardNumber}>
-                  {stats?.interested_leads || 0}
-                </Text>
-                <Text variant="bodyMedium" style={styles.cardLabel}>
-                  Interested Leads
-                </Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity 
+              style={styles.cardContainer}
+              onPress={() => router.push('/leads')}
+              activeOpacity={0.7}
+            >
+              <Card style={[styles.card, styles.infoCard]}>
+                <Card.Content>
+                  <Text variant="displayMedium" style={styles.cardNumber}>
+                    {stats?.interested_leads || 0}
+                  </Text>
+                  <Text variant="bodyMedium" style={styles.cardLabel}>
+                    Interested Leads
+                  </Text>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
           </View>
 
           {/* Third Row */}
