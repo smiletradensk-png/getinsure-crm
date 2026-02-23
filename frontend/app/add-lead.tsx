@@ -555,6 +555,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000000',
   },
+  datePickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#009688',
+    borderRadius: 4,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#000000',
+  },
+  calendarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  calendarModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  calendarTitle: {
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  calendarCloseButton: {
+    marginTop: 16,
+  },
   submitButton: {
     marginTop: 16,
     paddingVertical: 8,
