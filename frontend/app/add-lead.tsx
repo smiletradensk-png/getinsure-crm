@@ -142,6 +142,7 @@ export default function AddLeadScreen() {
       setNotes(data.notes || '');
       // Convert YYYY-MM-DD to DD-MM-YYYY for display
       setNextFollowupDate(data.next_followup_date ? formatDateToDDMMYYYY(data.next_followup_date) : '');
+      setNextFollowupTime(data.next_followup_time || '10:00');
       setNextFollowupType(data.next_followup_type || 'WhatsApp');
     } catch (error) {
       console.error('Error fetching lead:', error);
