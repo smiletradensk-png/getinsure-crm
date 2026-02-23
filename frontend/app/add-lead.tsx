@@ -208,6 +208,19 @@ export default function AddLeadScreen() {
       });
 
       if (response.ok) {
+        const savedLead = await response.json();
+        
+        // Schedule notification if follow-up date and time are set
+        if (nextFollowupDate && nextFollowupTime) {
+          await cancelAllLeadNotifications(savedLead.id);
+          await scheduleFollowupNotification(
+            savedLead.id,
+            name,
+            nextFollowupDate,
+            nextFollowupTime
+          );
+        }
+        
         Alert.alert(
           'Success', 
           isEditMode ? 'Lead updated successfully' : 'Lead added successfully', 
