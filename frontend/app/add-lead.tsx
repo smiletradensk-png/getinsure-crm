@@ -181,6 +181,7 @@ export default function AddLeadScreen() {
         city,
         notes,
         next_followup_date: nextFollowupDate ? formatDateToYYYYMMDD(nextFollowupDate) : null,
+        next_followup_time: nextFollowupTime,
         next_followup_type: nextFollowupType,
       };
 
