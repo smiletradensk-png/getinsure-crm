@@ -50,25 +50,13 @@ class LeadCreate(BaseModel):
     name: str
     mobile: str
     product: str  # Life/Health/Motor/Investment
-    status: str  # Lead/Quote/Policy Issued/Renewal/Closed/Not Interested
-    source: str  # Walk-in/Reference/Online/Other
+    status: str  # New/Contacted/Interested/Follow-up/Pipeline/Closed/Not Interested
+    source: str  # Walk-in/Reference/Online/Facebook Ads/Other
     city: Optional[str] = ""
     notes: Optional[str] = ""
     next_followup_date: Optional[str] = None
     next_followup_time: Optional[str] = None
     next_followup_type: Optional[str] = "Call"
-    
-    # Policy Lifecycle Fields
-    policy_number: Optional[str] = None
-    policy_start_date: Optional[str] = None
-    policy_end_date: Optional[str] = None
-    policy_amount: Optional[float] = 0.0
-    renewal_status: Optional[str] = "Active"  # Active/Expiring Soon/Expired
-    
-    # Family Grouping
-    family_head_id: Optional[str] = None
-    is_family_head: Optional[bool] = False
-    relationship: Optional[str] = "Self"  # Self/Spouse/Child/Parent/Sibling
 
 class Lead(LeadCreate):
     id: Optional[str] = None
