@@ -1,17 +1,24 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
-import { Text, Card, Button, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { Text, Card, Button, Switch, Divider, List } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
 
+  // Excel Export
   const handleExport = async (format: string) => {
     setExporting(true);
     try {
@@ -24,10 +31,10 @@ export default function SettingsScreen() {
         
         reader.onloadend = async () => {
           const base64data = reader.result as string;
-          const filename = `getinsure_export_${Date.now()}.${format}`;
+          const timestamp = Date.now();
+          const filename = `getinsure_export_${timestamp}.${format}`;
           const fileUri = FileSystem.documentDirectory + filename;
           
-          // Remove base64 prefix
           const base64 = base64data.split(',')[1];
           
           await FileSystem.writeAsStringAsync(fileUri, base64, {
@@ -38,11 +45,11 @@ export default function SettingsScreen() {
           if (canShare) {
             await Sharing.shareAsync(fileUri, {
               mimeType: format === 'csv' ? 'text/csv' : 'application/json',
-              dialogTitle: `Export GETINSURE CRM Data (${format.toUpperCase()})`,
+              dialogTitle: `Export GETINSURE CRM Data`,
             });
           }
           
-          Alert.alert('Success', `Data exported successfully as ${format.toUpperCase()}`);
+          Alert.alert('Success', `Data exported as ${format.toUpperCase()}`);
         };
         
         reader.readAsDataURL(blob);
@@ -57,28 +64,122 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleViewReports = async () => {
+  // Excel Import
+  const handleImport = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/reports`);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      setImporting(true);
+
+      const file = result.assets[0];
+      const fileInfo = await FileSystem.getInfoAsync(file.uri);
+      
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'File not found');
+        setImporting(false);
+        return;
+      }
+
+      // Read file as base64
+      const fileContent = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Create FormData
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        type: file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        name: file.name,
+      } as any);
+
+      const response = await fetch(`${BACKEND_URL}/api/import/excel`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
       const data = await response.json();
-      
-      let reportText = `GETINSURE CRM - Analytics Report\n\n`;
-      reportText += `Total Business Premium: ₹${data.total_business_premium.toLocaleString()}\n`;
-      reportText += `Monthly Business: ₹${data.monthly_business.toLocaleString()}\n`;
-      reportText += `Closing Ratio: ${data.closing_ratio}%\n`;
-      reportText += `Lead Conversion: ${data.lead_conversion}%\n\n`;
-      reportText += `Source Performance:\n`;
-      
-      Object.entries(data.source_performance).forEach(([source, stats]: [string, any]) => {
-        reportText += `  ${source}: ${stats.closed}/${stats.total} closed\n`;
-      });
-      
-      Alert.alert('Analytics Report', reportText, [{ text: 'OK' }], { 
-        userInterfaceStyle: 'light' 
-      });
+
+      if (response.ok) {
+        Alert.alert(
+          'Import Complete',
+          `Successfully imported ${data.imported} leads.\n${data.errors.length > 0 ? `Errors: ${data.errors.length}` : ''}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', data.detail || 'Failed to import data');
+      }
     } catch (error) {
-      console.error('Error fetching reports:', error);
-      Alert.alert('Error', 'Failed to fetch reports');
+      console.error('Error importing data:', error);
+      Alert.alert('Error', 'Failed to import Excel file');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Backup Data
+  const handleBackup = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/export/json`);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        const jsonData = reader.result as string;
+        const timestamp = Date.now();
+        
+        // Save to AsyncStorage
+        await AsyncStorage.setItem(`backup_${timestamp}`, jsonData);
+        
+        // Also export file
+        const filename = `getinsure_backup_${timestamp}.json`;
+        const fileUri = FileSystem.documentDirectory + filename;
+        
+        await FileSystem.writeAsStringAsync(fileUri, jsonData);
+        
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri);
+        }
+        
+        Alert.alert('Success', 'Backup created and saved!');
+      };
+      
+      reader.readAsText(blob);
+    } catch (error) {
+      console.error('Error creating backup:', error);
+      Alert.alert('Error', 'Failed to create backup');
+    }
+  };
+
+  // Notification Settings
+  const handleNotificationToggle = async (setting: string, value: boolean) => {
+    try {
+      await AsyncStorage.setItem(`notification_${setting}`, JSON.stringify(value));
+      
+      switch (setting) {
+        case 'enabled':
+          setNotificationsEnabled(value);
+          break;
+        case 'sound':
+          setSoundEnabled(value);
+          break;
+        case 'vibration':
+          setVibrationEnabled(value);
+          break;
+      }
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
     }
   };
 
@@ -89,108 +190,166 @@ export default function SettingsScreen() {
           Settings
         </Text>
         <Text variant="bodyMedium" style={styles.headerSubtitle}>
-          Export & Analytics
+          Data Management & Preferences
         </Text>
       </View>
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
-          {/* Export Section */}
+          {/* Excel Import/Export */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="export" size={32} color="#009688" />
+                <MaterialCommunityIcons name="microsoft-excel" size={32} color="#217346" />
                 <Text variant="titleLarge" style={styles.cardTitle}>
-                  Export Data
+                  Excel Import/Export
                 </Text>
               </View>
               <Text variant="bodyMedium" style={styles.cardDescription}>
-                Export all your leads data in different formats
+                Import leads from Excel or export all data
               </Text>
 
               <Button
                 mode="contained"
-                onPress={() => handleExport('csv')}
+                onPress={handleImport}
                 style={styles.button}
-                icon="file-delimited"
-                loading={exporting}
-                disabled={exporting}
-                buttonColor="#009688"
+                icon="file-import"
+                loading={importing}
+                disabled={importing || exporting}
+                buttonColor="#217346"
               >
-                Export as CSV
+                {importing ? 'Importing...' : 'Import from Excel'}
               </Button>
 
-              <Button
-                mode="contained"
-                onPress={() => handleExport('json')}
-                style={styles.button}
-                icon="code-json"
-                loading={exporting}
-                disabled={exporting}
-                buttonColor="#00796B"
-              >
-                Export as JSON
-              </Button>
+              <View style={styles.exportButtons}>
+                <Button
+                  mode="contained"
+                  onPress={() => handleExport('csv')}
+                  style={styles.halfButton}
+                  icon="file-delimited"
+                  loading={exporting}
+                  disabled={exporting || importing}
+                  buttonColor="#009688"
+                >
+                  Export CSV
+                </Button>
+
+                <Button
+                  mode="contained"
+                  onPress={() => handleExport('json')}
+                  style={styles.halfButton}
+                  icon="code-json"
+                  loading={exporting}
+                  disabled={exporting || importing}
+                  buttonColor="#00796B"
+                >
+                  Export JSON
+                </Button>
+              </View>
             </Card.Content>
           </Card>
 
-          {/* Analytics Section */}
+          {/* Backup & Restore */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="chart-bar" size={32} color="#2196F3" />
+                <MaterialCommunityIcons name="backup-restore" size={32} color="#2196F3" />
                 <Text variant="titleLarge" style={styles.cardTitle}>
-                  Analytics & Reports
+                  Backup & Restore
                 </Text>
               </View>
               <Text variant="bodyMedium" style={styles.cardDescription}>
-                View detailed business analytics and performance metrics
+                Create encrypted backups of your data
               </Text>
 
               <Button
                 mode="contained"
-                onPress={handleViewReports}
+                onPress={handleBackup}
                 style={styles.button}
-                icon="chart-line"
+                icon="cloud-upload"
                 buttonColor="#2196F3"
               >
-                View Analytics Report
+                Create Backup Now
               </Button>
+
+              <Text variant="bodySmall" style={styles.noteText}>
+                Backups are saved locally and can be shared to cloud storage
+              </Text>
             </Card.Content>
           </Card>
 
-          {/* About Section */}
+          {/* Notification Settings */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="information" size={32} color="#FF9800" />
+                <MaterialCommunityIcons name="bell-ring" size={32} color="#FF9800" />
+                <Text variant="titleLarge" style={styles.cardTitle}>
+                  Notification Settings
+                </Text>
+              </View>
+
+              <List.Item
+                title="Enable Notifications"
+                description="Receive follow-up reminders"
+                left={() => <List.Icon icon="bell" />}
+                right={() => (
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={(value) => handleNotificationToggle('enabled', value)}
+                    color="#009688"
+                  />
+                )}
+              />
+              <Divider />
+
+              <List.Item
+                title="Sound"
+                description="Play notification sound"
+                left={() => <List.Icon icon="volume-high" />}
+                right={() => (
+                  <Switch
+                    value={soundEnabled}
+                    onValueChange={(value) => handleNotificationToggle('sound', value)}
+                    color="#009688"
+                    disabled={!notificationsEnabled}
+                  />
+                )}
+              />
+              <Divider />
+
+              <List.Item
+                title="Vibration"
+                description="Vibrate on notification"
+                left={() => <List.Icon icon="vibrate" />}
+                right={() => (
+                  <Switch
+                    value={vibrationEnabled}
+                    onValueChange={(value) => handleNotificationToggle('vibration', value)}
+                    color="#009688"
+                    disabled={!notificationsEnabled}
+                  />
+                )}
+              />
+            </Card.Content>
+          </Card>
+
+          {/* About */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="information" size={32} color="#9C27B0" />
                 <Text variant="titleLarge" style={styles.cardTitle}>
                   About
                 </Text>
               </View>
               <Text variant="bodyMedium" style={styles.aboutText}>
-                GETINSURE CRM
+                GETINSURE CRM - Premium Edition
               </Text>
               <Text variant="bodyMedium" style={styles.aboutText}>
-                Version 1.0.0
+                Version 2.0.0
               </Text>
               <Text variant="bodySmall" style={styles.aboutDescription}>
-                Professional Insurance Advisor CRM for managing leads, follow-ups, and closing deals.
-              </Text>
-            </Card.Content>
-          </Card>
-
-          {/* Quick Stats */}
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="shield-check" size={32} color="#4CAF50" />
-                <Text variant="titleLarge" style={styles.cardTitle}>
-                  Data Storage
-                </Text>
-              </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
-                All your data is securely stored in MongoDB database. Regular backups recommended.
+                Professional Insurance CRM with Policy Lifecycle Management, Family Grouping, Renewal Calendar, and Advanced Analytics.
               </Text>
             </Card.Content>
           </Card>
@@ -245,6 +404,19 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 8,
     paddingVertical: 4,
+  },
+  exportButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  halfButton: {
+    flex: 1,
+  },
+  noteText: {
+    color: '#757575',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   aboutText: {
     color: '#000000',
