@@ -330,6 +330,108 @@ async def export_data(format: str):
     else:
         raise HTTPException(status_code=400, detail="Invalid format. Use 'json' or 'csv'")
 
+# Renewal Calendar
+@api_router.get("/renewals/{days}")
+async def get_renewals(days: int):
+    """Get policies expiring in next X days"""
+    today = datetime.utcnow().date()
+    target_date = today + timedelta(days=days)
+    
+    leads = await db.leads.find({
+        "policy_end_date": {
+            "$gte": today.isoformat(),
+            "$lte": target_date.isoformat()
+        },
+        "status": {"$in": ["Policy Issued", "Renewal"]}
+    }).to_list(1000)
+    
+    for lead in leads:
+        lead['id'] = str(lead['_id'])
+        lead['_id'] = str(lead['_id'])
+    
+    return leads
+
+# Family Members
+@api_router.get("/family/{family_head_id}")
+async def get_family_members(family_head_id: str):
+    """Get all family members for a family head"""
+    if not ObjectId.is_valid(family_head_id):
+        raise HTTPException(status_code=400, detail="Invalid family head ID")
+    
+    family_members = await db.leads.find({
+        "$or": [
+            {"_id": ObjectId(family_head_id)},
+            {"family_head_id": family_head_id}
+        ]
+    }).to_list(100)
+    
+    for member in family_members:
+        member['id'] = str(member['_id'])
+        member['_id'] = str(member['_id'])
+    
+    return family_members
+
+# Excel Import
+@api_router.post("/import/excel")
+async def import_excel(file: UploadFile = File(...)):
+    """Import leads from Excel file"""
+    try:
+        # Read Excel file
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+        
+        # Column mapping (flexible)
+        column_map = {
+            'name': ['name', 'Name', 'NAME', 'Client Name', 'Customer Name'],
+            'mobile': ['mobile', 'Mobile', 'MOBILE', 'Phone', 'Ph No', 'Contact'],
+            'product': ['product', 'Product', 'PRODUCT', 'Insurance Type'],
+            'city': ['city', 'City', 'CITY', 'Location'],
+            'status': ['status', 'Status', 'STATUS'],
+            'source': ['source', 'Source', 'SOURCE'],
+        }
+        
+        imported_count = 0
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                # Map columns
+                lead_data = {}
+                for field, possible_names in column_map.items():
+                    for col_name in possible_names:
+                        if col_name in df.columns and pd.notna(row[col_name]):
+                            lead_data[field] = str(row[col_name])
+                            break
+                
+                # Validate required fields
+                if 'name' not in lead_data or 'mobile' not in lead_data:
+                    errors.append(f"Row {index + 2}: Missing name or mobile")
+                    continue
+                
+                # Set defaults
+                lead_data.setdefault('product', 'Life')
+                lead_data.setdefault('status', 'Lead')
+                lead_data.setdefault('source', 'Import')
+                lead_data.setdefault('city', '')
+                lead_data['created_at'] = datetime.utcnow()
+                lead_data['updated_at'] = datetime.utcnow()
+                
+                # Insert
+                await db.leads.insert_one(lead_data)
+                imported_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {index + 2}: {str(e)}")
+        
+        return {
+            "success": True,
+            "imported": imported_count,
+            "errors": errors
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to import: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
