@@ -17,6 +17,39 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [userPhone, setUserPhone] = useState('');
+
+  useEffect(() => {
+    loadUserInfo();
+  }, []);
+
+  const loadUserInfo = async () => {
+    try {
+      const phone = await AsyncStorage.getItem('userPhone');
+      setUserPhone(phone || '');
+    } catch (error) {
+      console.error('Error loading user info:', error);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout? Local data will be preserved.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('userLoggedIn');
+            await AsyncStorage.removeItem('userPhone');
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
 
   // Excel Export
   const handleExport = async (format: string) => {
