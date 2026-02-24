@@ -1,18 +1,33 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, ActivityIndicator } from 'react-native-paper';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function WelcomeScreen() {
+  const [checking, setChecking] = useState(true);
+
   useEffect(() => {
-    // Auto navigate to main app after 2 seconds
-    const timer = setTimeout(() => {
-      router.replace('/(tabs)');
-    }, 2000);
-    
-    return () => clearTimeout(timer);
+    checkAuthStatus();
   }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      const isLoggedIn = await AsyncStorage.getItem('userLoggedIn');
+      
+      setTimeout(() => {
+        if (isLoggedIn === 'true') {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/login');
+        }
+      }, 1500);
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      router.replace('/login');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -21,10 +36,11 @@ export default function WelcomeScreen() {
           GETINSURE CRM
         </Text>
         <Text variant="titleMedium" style={styles.subtitle}>
-          Professional Insurance Advisor CRM
+          Premium Insurance CRM
         </Text>
+        <ActivityIndicator size="large" color="#009688" style={styles.loader} />
         <Text variant="bodyMedium" style={styles.description}>
-          Manage leads, follow-ups, and close more deals
+          Offline-First • OTP Login • Facebook Ads Integration
         </Text>
       </View>
     </SafeAreaView>
@@ -51,7 +67,10 @@ const styles = StyleSheet.create({
   subtitle: {
     color: '#E0F2F1',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 40,
+  },
+  loader: {
+    marginVertical: 24,
   },
   description: {
     color: '#B2DFDB',
