@@ -302,7 +302,7 @@ async def export_data(format: str):
         output = io.StringIO()
         if leads:
             fieldnames = ['id', 'name', 'mobile', 'product', 'status', 'source', 'city', 
-                         'notes', 'next_followup_date', 'next_followup_type',
+                         'notes', 'next_followup_date', 'next_followup_time', 'next_followup_type',
                          'created_at', 'updated_at']
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
@@ -319,50 +319,65 @@ async def export_data(format: str):
     else:
         raise HTTPException(status_code=400, detail="Invalid format. Use 'json' or 'csv'")
 
-# Renewal Calendar
-@api_router.get("/renewals/{days}")
-async def get_renewals(days: int):
-    """Get policies expiring in next X days"""
-    today = datetime.utcnow().date()
-    target_date = today + timedelta(days=days)
+# Facebook Lead Ads Webhook
+@api_router.get("/facebook/webhook")
+async def facebook_webhook_verify(
+    mode: str = None,
+    verify_token: str = None,
+    challenge: str = None
+):
+    """Facebook webhook verification"""
+    VERIFY_TOKEN = "GETINSURE_CRM_TOKEN_2025"  # Change this to your own token
     
-    leads = await db.leads.find({
-        "policy_end_date": {
-            "$gte": today.isoformat(),
-            "$lte": target_date.isoformat()
-        },
-        "status": {"$in": ["Policy Issued", "Renewal"]}
-    }).to_list(1000)
-    
-    for lead in leads:
-        lead['id'] = str(lead['_id'])
-        lead['_id'] = str(lead['_id'])
-    
-    return leads
+    if mode == "subscribe" and verify_token == VERIFY_TOKEN:
+        logger.info("Facebook webhook verified successfully")
+        return int(challenge)
+    else:
+        raise HTTPException(status_code=403, detail="Verification failed")
 
-# Family Members
-@api_router.get("/family/{family_head_id}")
-async def get_family_members(family_head_id: str):
-    """Get all family members for a family head"""
-    if not ObjectId.is_valid(family_head_id):
-        raise HTTPException(status_code=400, detail="Invalid family head ID")
-    
-    family_members = await db.leads.find({
-        "$or": [
-            {"_id": ObjectId(family_head_id)},
-            {"family_head_id": family_head_id}
-        ]
-    }).to_list(100)
-    
-    for member in family_members:
-        member['id'] = str(member['_id'])
-        member['_id'] = str(member['_id'])
-    
-    return family_members
+@api_router.post("/facebook/webhook")
+async def facebook_webhook_receive(request: dict):
+    """Receive Facebook lead ads data"""
+    try:
+        logger.info(f"Facebook webhook received: {request}")
+        
+        # Extract lead data from Facebook payload
+        if request.get('object') == 'page':
+            for entry in request.get('entry', []):
+                for change in entry.get('changes', []):
+                    if change.get('field') == 'leadgen':
+                        leadgen_data = change.get('value', {})
+                        leadgen_id = leadgen_data.get('leadgen_id')
+                        
+                        # In production, fetch lead details from Facebook Graph API
+                        # For now, create lead from webhook data
+                        form_data = leadgen_data.get('form', {})
+                        
+                        # Create lead in database
+                        lead_dict = {
+                            'name': form_data.get('full_name', 'Facebook Lead'),
+                            'mobile': form_data.get('phone_number', ''),
+                            'product': 'Life',  # Default
+                            'status': 'New',
+                            'source': 'Facebook Ads',
+                            'city': form_data.get('city', ''),
+                            'notes': f'Lead from Facebook Ads. Lead ID: {leadgen_id}',
+                            'created_at': datetime.utcnow(),
+                            'updated_at': datetime.utcnow()
+                        }
+                        
+                        result = await db.leads.insert_one(lead_dict)
+                        logger.info(f"Facebook lead created: {result.inserted_id}")
+                        
+        return {"status": "success"}
+        
+    except Exception as e:
+        logger.error(f"Error processing Facebook webhook: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 # Excel Import
 @api_router.post("/import/excel")
-async def import_excel(file: UploadFile = File(...)):
+async def import_excel(file: UploadFile):
     """Import leads from Excel file"""
     try:
         # Read Excel file
@@ -371,9 +386,9 @@ async def import_excel(file: UploadFile = File(...)):
         
         # Column mapping (flexible)
         column_map = {
-            'name': ['name', 'Name', 'NAME', 'Client Name', 'Customer Name'],
-            'mobile': ['mobile', 'Mobile', 'MOBILE', 'Phone', 'Ph No', 'Contact'],
-            'product': ['product', 'Product', 'PRODUCT', 'Insurance Type'],
+            'name': ['name', 'Name', 'NAME', 'Client Name', 'Customer Name', 'Full Name'],
+            'mobile': ['mobile', 'Mobile', 'MOBILE', 'Phone', 'Ph No', 'Contact', 'Phone Number'],
+            'product': ['product', 'Product', 'PRODUCT', 'Insurance Type', 'Policy Type'],
             'city': ['city', 'City', 'CITY', 'Location'],
             'status': ['status', 'Status', 'STATUS'],
             'source': ['source', 'Source', 'SOURCE'],
@@ -399,7 +414,7 @@ async def import_excel(file: UploadFile = File(...)):
                 
                 # Set defaults
                 lead_data.setdefault('product', 'Life')
-                lead_data.setdefault('status', 'Lead')
+                lead_data.setdefault('status', 'New')
                 lead_data.setdefault('source', 'Import')
                 lead_data.setdefault('city', '')
                 lead_data['created_at'] = datetime.utcnow()
