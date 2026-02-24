@@ -230,6 +230,34 @@ export default function SettingsScreen() {
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
+          {/* User Profile Card */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="account-circle" size={32} color="#009688" />
+                <Text variant="titleLarge" style={styles.cardTitle}>
+                  Profile
+                </Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.phoneNumber}>
+                +91 {userPhone}
+              </Text>
+              <Text variant="bodySmall" style={styles.cardDescription}>
+                Logged in user
+              </Text>
+
+              <Button
+                mode="contained"
+                onPress={handleLogout}
+                style={styles.button}
+                icon="logout"
+                buttonColor="#F44336"
+              >
+                Logout
+              </Button>
+            </Card.Content>
+          </Card>
+
           {/* Excel Import/Export */}
           <Card style={styles.card}>
             <Card.Content>
