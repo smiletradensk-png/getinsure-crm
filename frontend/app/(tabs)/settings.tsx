@@ -489,4 +489,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
+  phoneNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#009688',
+    marginTop: 8,
+    marginBottom: 4,
+  },
 });
