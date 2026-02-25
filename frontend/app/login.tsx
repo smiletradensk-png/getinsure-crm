@@ -162,17 +162,20 @@ export default function LoginScreen() {
                 placeholder="6-digit OTP"
               />
 
-              <Button
-                mode="contained"
+              <TouchableOpacity
+                style={[styles.button, styles.verifyButton]}
                 onPress={verifyOTP}
-                style={styles.button}
-                loading={loading}
                 disabled={loading}
-                buttonColor="#009688"
-                icon="check-circle"
               >
-                {loading ? 'Verifying...' : 'Verify & Login'}
-              </Button>
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="check-circle" size={20} color="#FFFFFF" />
+                    <Text style={styles.buttonText}>Verify & Login</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
               <Button
                 mode="text"
