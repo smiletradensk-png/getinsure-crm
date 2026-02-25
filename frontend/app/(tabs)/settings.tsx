@@ -20,9 +20,14 @@ export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [userPhone, setUserPhone] = useState('');
+  const [verifyToken, setVerifyToken] = useState('GETINSURE_VERIFY_TOKEN_2024');
+
+  // Facebook Webhook URL
+  const webhookUrl = `${BACKEND_URL}/api/facebook/webhook`;
 
   useEffect(() => {
     loadUserInfo();
+    loadVerifyToken();
   }, []);
 
   const loadUserInfo = async () => {
@@ -32,6 +37,30 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Error loading user info:', error);
     }
+  };
+
+  const loadVerifyToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('fb_verify_token');
+      if (token) setVerifyToken(token);
+    } catch (error) {
+      console.error('Error loading verify token:', error);
+    }
+  };
+
+  const saveVerifyToken = async () => {
+    try {
+      await AsyncStorage.setItem('fb_verify_token', verifyToken);
+      Alert.alert('Saved', 'Verify token saved successfully!');
+    } catch (error) {
+      console.error('Error saving verify token:', error);
+      Alert.alert('Error', 'Failed to save verify token');
+    }
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    await Clipboard.setStringAsync(text);
+    Alert.alert('Copied!', `${label} copied to clipboard`);
   };
 
   const handleLogout = () => {
