@@ -56,6 +56,11 @@ export const initializeDatabase = async () => {
 
 // Create or update lead locally
 export const saveLeadLocal = async (lead: any) => {
+  // If not on native platform, skip local storage
+  if (!isNativePlatform || !db) {
+    return { success: true, id: lead.id || Date.now().toString(), skipped: true };
+  }
+
   try {
     const {
       id,
