@@ -116,6 +116,10 @@ export const saveLeadLocal = async (lead: any) => {
 
 // Get all leads from local database
 export const getAllLeadsLocal = (): any[] => {
+  if (!isNativePlatform || !db) {
+    return [];
+  }
+  
   try {
     const result = db.getAllSync(`SELECT * FROM leads ORDER BY created_at DESC`);
     return result;
@@ -127,6 +131,10 @@ export const getAllLeadsLocal = (): any[] => {
 
 // Get single lead by ID
 export const getLeadByIdLocal = (id: string): any => {
+  if (!isNativePlatform || !db) {
+    return null;
+  }
+  
   try {
     const result = db.getFirstSync(`SELECT * FROM leads WHERE id = ?`, [id]);
     return result;
@@ -138,6 +146,10 @@ export const getLeadByIdLocal = (id: string): any => {
 
 // Delete lead locally
 export const deleteLeadLocal = (id: string) => {
+  if (!isNativePlatform || !db) {
+    return { success: true, skipped: true };
+  }
+  
   try {
     db.runSync(`DELETE FROM leads WHERE id = ?`, [id]);
     
@@ -156,6 +168,10 @@ export const deleteLeadLocal = (id: string) => {
 
 // Search leads locally
 export const searchLeadsLocal = (query: string): any[] => {
+  if (!isNativePlatform || !db) {
+    return [];
+  }
+  
   try {
     const result = db.getAllSync(
       `SELECT * FROM leads 
@@ -172,6 +188,10 @@ export const searchLeadsLocal = (query: string): any[] => {
 
 // Get unsynced leads
 export const getUnsyncedLeads = (): any[] => {
+  if (!isNativePlatform || !db) {
+    return [];
+  }
+  
   try {
     const result = db.getAllSync(`SELECT * FROM sync_queue WHERE synced = 0`);
     return result;
@@ -183,6 +203,10 @@ export const getUnsyncedLeads = (): any[] => {
 
 // Mark lead as synced
 export const markAsSynced = (leadId: string) => {
+  if (!isNativePlatform || !db) {
+    return;
+  }
+  
   try {
     db.runSync(`UPDATE leads SET synced = 1, local_changes = 0 WHERE id = ?`, [leadId]);
     db.runSync(`UPDATE sync_queue SET synced = 1 WHERE lead_id = ?`, [leadId]);
@@ -193,6 +217,10 @@ export const markAsSynced = (leadId: string) => {
 
 // Clear all local data (for logout)
 export const clearLocalData = () => {
+  if (!isNativePlatform || !db) {
+    return;
+  }
+  
   try {
     db.runSync(`DELETE FROM leads`);
     db.runSync(`DELETE FROM sync_queue`);
