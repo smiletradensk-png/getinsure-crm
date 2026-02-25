@@ -64,33 +64,16 @@ export default function LoginScreen() {
         await AsyncStorage.setItem('userLoggedIn', 'true');
         await AsyncStorage.setItem('userPhone', phoneNumber);
         
-        Alert.alert('Success', 'Login successful!', [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ]);
+        // Navigate immediately - Alert callbacks don't work well on web
+        setLoading(false);
+        router.replace('/(tabs)');
       } else {
         Alert.alert('Error', 'Invalid OTP. Please try again.');
+        setLoading(false);
       }
-      
-      // Production code (uncomment when Firebase is configured):
-      /*
-      const { auth } = require('../config/firebase');
-      const { PhoneAuthProvider, signInWithCredential } = require('firebase/auth');
-      
-      const credential = PhoneAuthProvider.credential(verificationId, otp);
-      await signInWithCredential(auth, credential);
-      
-      await AsyncStorage.setItem('userLoggedIn', 'true');
-      await AsyncStorage.setItem('userPhone', phoneNumber);
-      
-      router.replace('/(tabs)');
-      */
     } catch (error) {
       console.error('Error verifying OTP:', error);
       Alert.alert('Error', 'Invalid OTP. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
