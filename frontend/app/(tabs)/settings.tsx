@@ -370,6 +370,79 @@ export default function SettingsScreen() {
             </Card.Content>
           </Card>
 
+          {/* Facebook Lead Ads Integration */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="facebook" size={32} color="#1877F2" />
+                <Text variant="titleLarge" style={styles.cardTitle}>
+                  Facebook Lead Ads
+                </Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.cardDescription}>
+                Automatically import leads from your Facebook Ads
+              </Text>
+
+              <Text variant="labelMedium" style={styles.fieldLabel}>
+                Webhook URL (Copy to Facebook)
+              </Text>
+              <TouchableOpacity
+                style={styles.copyField}
+                onPress={() => copyToClipboard(webhookUrl, 'Webhook URL')}
+              >
+                <Text style={styles.copyFieldText} numberOfLines={1}>
+                  {webhookUrl}
+                </Text>
+                <MaterialCommunityIcons name="content-copy" size={20} color="#1877F2" />
+              </TouchableOpacity>
+
+              <Text variant="labelMedium" style={styles.fieldLabel}>
+                Verify Token
+              </Text>
+              <View style={styles.tokenInputContainer}>
+                <TextInput
+                  value={verifyToken}
+                  onChangeText={setVerifyToken}
+                  mode="outlined"
+                  style={styles.tokenInput}
+                  outlineColor="#1877F2"
+                  activeOutlineColor="#1877F2"
+                  placeholder="Enter your verify token"
+                />
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={() => copyToClipboard(verifyToken, 'Verify Token')}
+                >
+                  <MaterialCommunityIcons name="content-copy" size={20} color="#1877F2" />
+                </TouchableOpacity>
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={saveVerifyToken}
+                style={styles.button}
+                icon="check"
+                buttonColor="#1877F2"
+              >
+                Save Token
+              </Button>
+
+              <View style={styles.instructionsBox}>
+                <Text variant="labelMedium" style={styles.instructionsTitle}>
+                  Setup Instructions:
+                </Text>
+                <Text variant="bodySmall" style={styles.instructionsText}>
+                  1. Go to Facebook Business Manager{'\n'}
+                  2. Navigate to Integrations → Lead Ads{'\n'}
+                  3. Click "Add New Webhook"{'\n'}
+                  4. Paste the Webhook URL above{'\n'}
+                  5. Enter the Verify Token{'\n'}
+                  6. Select your page and subscribe
+                </Text>
+              </View>
+            </Card.Content>
+          </Card>
+
           {/* Notification Settings */}
           <Card style={styles.card}>
             <Card.Content>
