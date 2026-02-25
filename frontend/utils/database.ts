@@ -13,7 +13,7 @@ export const initializeDatabase = async () => {
 
   try {
     // Dynamic import to avoid web bundling issues
-    const SQLite = await import('expo-sqlite');
+    const SQLite = require('expo-sqlite');
     db = SQLite.openDatabaseSync('getinsure.db');
     
     db.execSync(`
