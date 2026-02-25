@@ -237,6 +237,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingVertical: 8,
   },
+  verifyButton: {
+    backgroundColor: '#009688',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 24,
+    gap: 8,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   phoneDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
