@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, Card, Button, Switch, Divider, List } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { Text, Card, Button, Switch, Divider, List, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -9,6 +9,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
