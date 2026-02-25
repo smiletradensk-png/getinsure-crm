@@ -11,7 +11,7 @@ import sys
 import os
 
 # Backend URL from environment
-BACKEND_URL = "https://leadtrack-insurance.preview.emergentagent.com/api"
+BACKEND_URL = "https://getinsure-preview.preview.emergentagent.com/api"
 
 class Colors:
     GREEN = '\033[92m'
