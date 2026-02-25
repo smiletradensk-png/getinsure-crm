@@ -56,23 +56,28 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
+    console.log('[LOGIN] Starting OTP verification...');
 
     try {
       // Demo mode - accept 123456
       if (otp === '123456') {
+        console.log('[LOGIN] OTP is valid, saving to AsyncStorage...');
         // Save login state
         await AsyncStorage.setItem('userLoggedIn', 'true');
         await AsyncStorage.setItem('userPhone', phoneNumber);
+        console.log('[LOGIN] AsyncStorage saved, navigating to tabs...');
         
         // Navigate immediately - Alert callbacks don't work well on web
         setLoading(false);
         router.replace('/(tabs)');
+        console.log('[LOGIN] Navigation called');
       } else {
+        console.log('[LOGIN] Invalid OTP entered');
         Alert.alert('Error', 'Invalid OTP. Please try again.');
         setLoading(false);
       }
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+      console.error('[LOGIN] Error verifying OTP:', error);
       Alert.alert('Error', 'Invalid OTP. Please try again.');
       setLoading(false);
     }
