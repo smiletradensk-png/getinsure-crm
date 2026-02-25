@@ -1,10 +1,21 @@
-import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
-const db = SQLite.openDatabaseSync('getinsure.db');
+// SQLite only works on native platforms (iOS/Android), not on web
+let db: any = null;
+let isNativePlatform = Platform.OS !== 'web';
 
-// Initialize database schema
-export const initializeDatabase = () => {
+// Initialize database schema (only on native)
+export const initializeDatabase = async () => {
+  if (!isNativePlatform) {
+    console.log('📱 Web platform detected - SQLite disabled, using API-only mode');
+    return;
+  }
+
   try {
+    // Dynamic import to avoid web bundling issues
+    const SQLite = await import('expo-sqlite');
+    db = SQLite.openDatabaseSync('getinsure.db');
+    
     db.execSync(`
       CREATE TABLE IF NOT EXISTS leads (
         id TEXT PRIMARY KEY NOT NULL,
@@ -36,9 +47,10 @@ export const initializeDatabase = () => {
       CREATE INDEX IF NOT EXISTS idx_synced ON leads(synced);
       CREATE INDEX IF NOT EXISTS idx_mobile ON leads(mobile);
     `);
-    console.log('Database initialized successfully');
+    console.log('✅ SQLite Database initialized successfully');
   } catch (error) {
-    console.error('Error initializing database:', error);
+    console.error('❌ Error initializing database:', error);
+    isNativePlatform = false; // Fallback to API-only mode
   }
 };
 
