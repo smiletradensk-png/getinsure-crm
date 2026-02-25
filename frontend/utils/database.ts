@@ -231,6 +231,16 @@ export const clearLocalData = () => {
 
 // Get counts for dashboard
 export const getLocalStats = () => {
+  if (!isNativePlatform || !db) {
+    return {
+      total_leads: 0,
+      today_followups: 0,
+      overdue_followups: 0,
+      interested_leads: 0,
+      closed_leads: 0,
+    };
+  }
+  
   try {
     const stats = {
       total_leads: 0,
@@ -280,5 +290,8 @@ export const getLocalStats = () => {
     };
   }
 };
+
+// Check if we're using local database
+export const isUsingLocalDB = () => isNativePlatform && db !== null;
 
 export default db;
