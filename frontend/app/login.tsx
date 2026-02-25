@@ -58,26 +58,26 @@ export default function LoginScreen() {
     setLoading(true);
     console.log('[LOGIN] Starting OTP verification...');
 
-    try {
-      // Demo mode - accept 123456
-      if (otp === '123456') {
-        console.log('[LOGIN] OTP is valid, saving to AsyncStorage...');
+    // Demo mode - accept 123456
+    if (otp === '123456') {
+      console.log('[LOGIN] OTP is valid, saving to AsyncStorage...');
+      
+      try {
         // Save login state
         await AsyncStorage.setItem('userLoggedIn', 'true');
         await AsyncStorage.setItem('userPhone', phoneNumber);
-        console.log('[LOGIN] AsyncStorage saved, navigating to tabs...');
-        
-        // Navigate immediately - Alert callbacks don't work well on web
-        setLoading(false);
-        router.replace('/(tabs)');
-        console.log('[LOGIN] Navigation called');
-      } else {
-        console.log('[LOGIN] Invalid OTP entered');
-        Alert.alert('Error', 'Invalid OTP. Please try again.');
-        setLoading(false);
+        console.log('[LOGIN] AsyncStorage saved successfully');
+      } catch (storageError) {
+        console.warn('[LOGIN] AsyncStorage save failed (non-critical):', storageError);
+        // Continue anyway - user can still use the app
       }
-    } catch (error) {
-      console.error('[LOGIN] Error verifying OTP:', error);
+      
+      console.log('[LOGIN] Navigating to tabs...');
+      setLoading(false);
+      router.replace('/(tabs)');
+      console.log('[LOGIN] Navigation called');
+    } else {
+      console.log('[LOGIN] Invalid OTP entered');
       Alert.alert('Error', 'Invalid OTP. Please try again.');
       setLoading(false);
     }
