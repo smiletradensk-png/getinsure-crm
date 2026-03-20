@@ -106,7 +106,13 @@ async def create_lead(lead: LeadCreate):
 
 @api_router.get("/leads")
 async def get_leads():
-    leads = await db.leads.find().sort("created_at", -1).to_list(1000)
+    # Optimized query with projection for better performance
+    projection = {
+        'name': 1, 'mobile': 1, 'product': 1, 'status': 1, 
+        'source': 1, 'city': 1, 'next_followup_date': 1,
+        'next_followup_time': 1, 'notes': 1, 'created_at': 1, 'updated_at': 1
+    }
+    leads = await db.leads.find({}, projection).sort("created_at", -1).to_list(500)
     for lead in leads:
         lead['id'] = str(lead['_id'])
         lead['_id'] = str(lead['_id'])
@@ -163,7 +169,9 @@ async def create_interaction(interaction: InteractionCreate):
 
 @api_router.get("/interactions/{lead_id}")
 async def get_interactions(lead_id: str):
-    interactions = await db.interactions.find({"lead_id": lead_id}).sort("created_at", -1).to_list(1000)
+    # Optimized with projection and limit
+    projection = {'type': 1, 'description': 1, 'lead_id': 1, 'created_at': 1}
+    interactions = await db.interactions.find({"lead_id": lead_id}, projection).sort("created_at", -1).to_list(100)
     for interaction in interactions:
         interaction['id'] = str(interaction['_id'])
         interaction['_id'] = str(interaction['_id'])
@@ -223,7 +231,12 @@ async def get_followups(filter: Optional[str] = None):
     elif filter == "upcoming":
         query["next_followup_date"] = {"$gt": today}
     
-    leads = await db.leads.find(query).sort("next_followup_date", 1).to_list(1000)
+    # Optimized with projection and limit
+    projection = {
+        'name': 1, 'mobile': 1, 'product': 1, 'status': 1,
+        'next_followup_date': 1, 'next_followup_time': 1, 'notes': 1
+    }
+    leads = await db.leads.find(query, projection).sort("next_followup_date", 1).to_list(200)
     for lead in leads:
         lead['id'] = str(lead['_id'])
         lead['_id'] = str(lead['_id'])
@@ -232,7 +245,9 @@ async def get_followups(filter: Optional[str] = None):
 # Reports
 @api_router.get("/reports")
 async def get_reports():
-    all_leads = await db.leads.find().to_list(1000)
+    # Optimized with projection - only fetch required fields
+    projection = {'status': 1, 'source': 1}
+    all_leads = await db.leads.find({}, projection).to_list(1000)
     
     total_leads = len(all_leads)
     closed_leads = len([l for l in all_leads if l.get('status') == 'Closed'])
@@ -269,7 +284,12 @@ async def search_leads(q: str):
             {"city": {"$regex": q, "$options": "i"}}
         ]
     }
-    leads = await db.leads.find(query).to_list(1000)
+    # Optimized with projection and limit
+    projection = {
+        'name': 1, 'mobile': 1, 'product': 1, 'status': 1, 
+        'city': 1, 'source': 1, 'next_followup_date': 1
+    }
+    leads = await db.leads.find(query, projection).limit(100).to_list(100)
     for lead in leads:
         lead['id'] = str(lead['_id'])
         lead['_id'] = str(lead['_id'])
