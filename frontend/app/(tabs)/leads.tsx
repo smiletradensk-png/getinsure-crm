@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, Alert, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, Alert, Modal, Image, Platform } from 'react-native';
 import { Text, Card, FAB, Chip, ActivityIndicator, Searchbar, IconButton, Checkbox, Button, TextInput, ProgressBar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -42,6 +44,7 @@ export default function LeadsScreen() {
     'Dear [Name], We have a special offer for you!',
     'Hi [Name], Thank you for your interest in our insurance plans.',
   ]);
+  const [selectedMedia, setSelectedMedia] = useState<{uri: string, type: 'image' | 'video'} | null>(null);
 
   const statuses = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
 
@@ -154,14 +157,95 @@ export default function LeadsScreen() {
 
   const handleBulkWhatsApp = () => {
     setShowBulkWhatsAppModal(true);
+    setSelectedMedia(null); // Reset media when opening modal
+  };
+
+  // Pick image from gallery
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to attach images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedMedia({ uri: result.assets[0].uri, type: 'image' });
+    }
+  };
+
+  // Pick video from gallery
+  const pickVideo = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to attach videos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedMedia({ uri: result.assets[0].uri, type: 'video' });
+    }
+  };
+
+  // Take photo with camera
+  const takePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Required', 'Please allow camera access to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedMedia({ uri: result.assets[0].uri, type: 'image' });
+    }
+  };
+
+  // Share media with WhatsApp
+  const shareMediaToWhatsApp = async (lead: Lead, personalizedMessage: string) => {
+    if (selectedMedia && Platform.OS !== 'web') {
+      try {
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          // Share the media file - user will need to select WhatsApp
+          await Sharing.shareAsync(selectedMedia.uri, {
+            mimeType: selectedMedia.type === 'image' ? 'image/jpeg' : 'video/mp4',
+            dialogTitle: `Share to ${lead.name}`,
+          });
+          return true;
+        }
+      } catch (error) {
+        console.error('Error sharing media:', error);
+      }
+    }
+    return false;
   };
 
   const sendBulkWhatsApp = async () => {
     const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
+    const hasMedia = selectedMedia !== null;
     
     Alert.alert(
       '🚀 Start Automatic WhatsApp',
-      `Ready to send to ${selectedLeads.size} lead(s)\n\n✅ Messages will open in WhatsApp\n✅ Just tap Send for each\n✅ App will open next lead automatically`,
+      `Ready to send to ${selectedLeads.size} lead(s)\n\n${hasMedia ? '📎 Media attached: ' + (selectedMedia?.type === 'image' ? 'Image' : 'Video') + '\n' : ''}✅ Messages will open in WhatsApp\n✅ Just tap Send for each\n✅ App will open next lead automatically`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -183,16 +267,30 @@ export default function LeadsScreen() {
               // Copy to clipboard for easy paste
               await Clipboard.setStringAsync(personalizedMessage);
               
-              // Open WhatsApp with pre-filled message and contact
-              await Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
-              
-              // Show toast notification
-              Alert.alert(
-                `Lead ${i + 1}/${selectedLeadsData.length}`,
-                `📱 WhatsApp opened for ${lead.name}\n\n✅ Message is pre-filled\n✅ Tap Send button\n✅ Then come back to app`,
-                [{ text: 'Next', onPress: () => {} }],
-                { cancelable: true }
-              );
+              // If media is attached, share it first (on mobile)
+              if (hasMedia && Platform.OS !== 'web') {
+                const mediaShared = await shareMediaToWhatsApp(lead, personalizedMessage);
+                if (mediaShared) {
+                  // Show instruction for media
+                  Alert.alert(
+                    `Lead ${i + 1}/${selectedLeadsData.length} - ${lead.name}`,
+                    `📎 Share ${selectedMedia?.type} with WhatsApp\n📝 Message copied to clipboard\n\n1. Select WhatsApp\n2. Choose ${lead.name}'s chat\n3. Paste message & Send`,
+                    [{ text: 'Next', onPress: () => {} }],
+                    { cancelable: true }
+                  );
+                }
+              } else {
+                // Open WhatsApp with pre-filled message and contact (no media)
+                await Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
+                
+                // Show toast notification
+                Alert.alert(
+                  `Lead ${i + 1}/${selectedLeadsData.length}`,
+                  `📱 WhatsApp opened for ${lead.name}\n\n✅ Message is pre-filled\n✅ Tap Send button\n✅ Then come back to app`,
+                  [{ text: 'Next', onPress: () => {} }],
+                  { cancelable: true }
+                );
+              }
               
               // Wait for user to send and come back (3 seconds is optimal)
               await new Promise(resolve => setTimeout(resolve, 3000));
@@ -203,6 +301,7 @@ export default function LeadsScreen() {
             setShowBulkWhatsAppModal(false);
             setSelectionMode(false);
             setSelectedLeads(new Set());
+            setSelectedMedia(null);
             
             Alert.alert(
               '✅ Bulk WhatsApp Complete!',
@@ -599,6 +698,75 @@ export default function LeadsScreen() {
                 placeholder="Hi [Name], Your insurance quote is ready!"
                 disabled={isSending}
               />
+
+              {/* Media Attachment Section */}
+              <Text variant="labelLarge" style={styles.modalLabel}>
+                Attach Media (Optional)
+              </Text>
+              <View style={styles.mediaButtonsRow}>
+                <TouchableOpacity 
+                  style={styles.mediaButton}
+                  onPress={pickImage}
+                  disabled={isSending}
+                >
+                  <MaterialCommunityIcons name="image" size={24} color="#4CAF50" />
+                  <Text style={styles.mediaButtonText}>Gallery</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.mediaButton}
+                  onPress={takePhoto}
+                  disabled={isSending}
+                >
+                  <MaterialCommunityIcons name="camera" size={24} color="#2196F3" />
+                  <Text style={styles.mediaButtonText}>Camera</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.mediaButton}
+                  onPress={pickVideo}
+                  disabled={isSending}
+                >
+                  <MaterialCommunityIcons name="video" size={24} color="#FF5722" />
+                  <Text style={styles.mediaButtonText}>Video</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected Media Preview */}
+              {selectedMedia && (
+                <View style={styles.mediaPreviewContainer}>
+                  {selectedMedia.type === 'image' ? (
+                    <Image 
+                      source={{ uri: selectedMedia.uri }} 
+                      style={styles.mediaPreview} 
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.videoPreview}>
+                      <MaterialCommunityIcons name="video" size={48} color="#FFFFFF" />
+                      <Text style={styles.videoPreviewText}>Video Selected</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity 
+                    style={styles.removeMediaButton}
+                    onPress={() => setSelectedMedia(null)}
+                  >
+                    <MaterialCommunityIcons name="close-circle" size={28} color="#F44336" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {selectedMedia && Platform.OS !== 'web' && (
+                <Text variant="bodySmall" style={styles.mediaNote}>
+                  📎 {selectedMedia.type === 'image' ? 'Image' : 'Video'} will be shared via device share menu
+                </Text>
+              )}
+
+              {selectedMedia && Platform.OS === 'web' && (
+                <Text variant="bodySmall" style={styles.mediaWarning}>
+                  ⚠️ Media sharing not supported on web. Use mobile app for media.
+                </Text>
+              )}
 
               {isSending && (
                 <View style={styles.progressContainer}>
@@ -1128,5 +1296,69 @@ const styles = StyleSheet.create({
   },
   statusModalCloseButton: {
     margin: 16,
+  },
+  mediaButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 12,
+    paddingHorizontal: 8,
+  },
+  mediaButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 16,
+    width: 90,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  mediaButtonText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#424242',
+    fontWeight: '500',
+  },
+  mediaPreviewContainer: {
+    position: 'relative',
+    marginVertical: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F5F5F5',
+  },
+  mediaPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  videoPreview: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#424242',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPreviewText: {
+    color: '#FFFFFF',
+    marginTop: 8,
+    fontWeight: 'bold',
+  },
+  removeMediaButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+  },
+  mediaNote: {
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  mediaWarning: {
+    color: '#FF9800',
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });
