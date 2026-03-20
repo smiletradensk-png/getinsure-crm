@@ -48,6 +48,31 @@ export default function LeadsScreen() {
 
   const statuses = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
 
+  // Helper function to format phone number for WhatsApp
+  const formatPhoneForWhatsApp = (phone: string): string => {
+    // Remove all non-digit characters
+    let cleaned = phone.replace(/[^0-9]/g, '');
+    
+    // If number starts with 0, remove it (Indian local format)
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.substring(1);
+    }
+    
+    // If number is 10 digits (Indian mobile without country code), add 91
+    if (cleaned.length === 10) {
+      cleaned = '91' + cleaned;
+    }
+    
+    // If number doesn't start with country code, assume India
+    // Most Indian numbers are 10 digits, with country code they are 12
+    if (cleaned.length < 10) {
+      // Invalid number, return as-is
+      return cleaned;
+    }
+    
+    return cleaned;
+  };
+
   const fetchLeads = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/leads`);
@@ -258,7 +283,6 @@ export default function LeadsScreen() {
               const lead = selectedLeadsData[i];
               const personalizedMessage = bulkMessage.replace(/\[Name\]/g, lead.name);
               const encodedMessage = encodeURIComponent(personalizedMessage);
-              const cleanMobile = lead.mobile.replace(/[^0-9]/g, '');
               
               // Update progress
               const progress = ((i + 1) / selectedLeadsData.length) * 100;
@@ -281,12 +305,13 @@ export default function LeadsScreen() {
                 }
               } else {
                 // Open WhatsApp with pre-filled message and contact (no media)
-                await Linking.openURL(`https://wa.me/91${cleanMobile}?text=${encodedMessage}`);
+                const formattedPhone = formatPhoneForWhatsApp(lead.mobile);
+                await Linking.openURL(`https://wa.me/${formattedPhone}?text=${encodedMessage}`);
                 
                 // Show toast notification
                 Alert.alert(
                   `Lead ${i + 1}/${selectedLeadsData.length}`,
-                  `📱 WhatsApp opened for ${lead.name}\n\n✅ Message is pre-filled\n✅ Tap Send button\n✅ Then come back to app`,
+                  `📱 WhatsApp opened for ${lead.name}\n📞 ${lead.mobile}\n\n✅ Message is pre-filled\n✅ Tap Send button\n✅ Then come back to app`,
                   [{ text: 'Next', onPress: () => {} }],
                   { cancelable: true }
                 );
@@ -338,8 +363,8 @@ export default function LeadsScreen() {
   };
 
   const handleWhatsApp = (mobile: string) => {
-    const cleanMobile = mobile.replace(/[^0-9]/g, '');
-    Linking.openURL(`https://wa.me/91${cleanMobile}`);
+    const formattedPhone = formatPhoneForWhatsApp(mobile);
+    Linking.openURL(`https://wa.me/${formattedPhone}`);
   };
 
   const handleDelete = (leadId: string) => {
@@ -1119,6 +1144,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#009688',
+    zIndex: 999,
+    elevation: 8,
   },
   modalOverlay: {
     flex: 1,
