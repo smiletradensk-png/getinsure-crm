@@ -347,7 +347,8 @@ async def facebook_webhook_verify(
     challenge: str = None
 ):
     """Facebook webhook verification"""
-    VERIFY_TOKEN = "GETINSURE_CRM_TOKEN_2025"  # Change this to your own token
+    # Read token from environment variable
+    VERIFY_TOKEN = os.environ.get('FACEBOOK_VERIFY_TOKEN', 'GETINSURE_CRM_TOKEN_2025')
     
     if mode == "subscribe" and verify_token == VERIFY_TOKEN:
         logger.info("Facebook webhook verified successfully")
