@@ -65,8 +65,11 @@ class Lead(LeadCreate):
 
 class InteractionCreate(BaseModel):
     lead_id: str
-    type: str  # Call/WhatsApp/Meeting/Note
+    type: str  # Call/WhatsApp/Meeting/Note/Email/Online/Message/Other
     description: str
+    location: Optional[str] = None
+    interaction_date: Optional[str] = None
+    interaction_time: Optional[str] = None
 
 class Interaction(InteractionCreate):
     id: Optional[str] = None
@@ -170,12 +173,21 @@ async def create_interaction(interaction: InteractionCreate):
 @api_router.get("/interactions/{lead_id}")
 async def get_interactions(lead_id: str):
     # Optimized with projection and limit
-    projection = {'type': 1, 'description': 1, 'lead_id': 1, 'created_at': 1}
+    projection = {'type': 1, 'description': 1, 'lead_id': 1, 'created_at': 1, 'location': 1, 'interaction_date': 1, 'interaction_time': 1}
     interactions = await db.interactions.find({"lead_id": lead_id}, projection).sort("created_at", -1).to_list(100)
     for interaction in interactions:
         interaction['id'] = str(interaction['_id'])
         interaction['_id'] = str(interaction['_id'])
     return interactions
+
+@api_router.delete("/interactions/{interaction_id}")
+async def delete_interaction(interaction_id: str):
+    if not ObjectId.is_valid(interaction_id):
+        raise HTTPException(status_code=400, detail="Invalid interaction ID")
+    result = await db.interactions.delete_one({"_id": ObjectId(interaction_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Interaction not found")
+    return {"message": "Interaction deleted successfully"}
 
 # Dashboard Stats
 @api_router.get("/dashboard/stats")
