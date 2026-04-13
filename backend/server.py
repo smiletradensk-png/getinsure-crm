@@ -481,45 +481,91 @@ class AIAssistantRequest(BaseModel):
 class AIAssistantResponse(BaseModel):
     response: str
     action: Optional[dict] = None
+    data: Optional[dict] = None
 
 ASSISTANT_SYSTEM_PROMPT = """You are GETINSURE AI, a powerful and precise personal assistant for an Insurance CRM app. 
-You help users manage their leads, schedule follow-ups, track interactions, and get insights about their business.
+You have FULL ACCESS to manage leads and can perform any action the user requests.
 
-Your capabilities include:
-1. Adding new leads - Ask for name, mobile, product, status, source, city
-2. Searching leads - By name, mobile, city, or status
-3. Scheduling follow-ups - Set dates and times for lead follow-ups
-4. Adding interactions - Log calls, meetings, emails with leads
-5. Getting statistics - Show dashboard stats, pipeline status
-6. Generating reports - Lead counts, conversion rates, follow-up stats
-7. WhatsApp messages - Help compose professional messages
-8. General CRM advice - Best practices for lead management
+YOUR CAPABILITIES:
+1. ADD LEAD - Create new leads with name, mobile, product, status, source, city
+2. SEARCH LEADS - Find leads by name, mobile, city, status, or product
+3. UPDATE LEAD - Modify any lead's information (status, follow-up date, notes, etc.)
+4. DELETE LEAD - Remove leads when requested
+5. GET LEAD DETAILS - Show complete information about a specific lead
+6. SCHEDULE FOLLOW-UP - Set follow-up dates and times for leads
+7. ADD INTERACTION - Log calls, meetings, emails, notes for leads
+8. GET STATISTICS - Show dashboard stats, pipeline counts, conversion rates
+9. LIST LEADS - Show leads filtered by status, source, or date
+10. BULK OPERATIONS - Update multiple leads at once
+
+WHEN USER REQUESTS AN ACTION, RESPOND WITH JSON:
+For adding a lead:
+{"action": "add_lead", "data": {"name": "John", "mobile": "9876543210", "product": "Health Insurance", "status": "New", "source": "Walk-in", "city": "Mumbai"}}
+
+For searching leads:
+{"action": "search_leads", "query": "search term"}
+
+For updating a lead:
+{"action": "update_lead", "lead_id": "xxx", "data": {"status": "Interested", "next_followup_date": "2024-03-20"}}
+
+For deleting a lead:
+{"action": "delete_lead", "lead_id": "xxx"}
+
+For getting lead details:
+{"action": "get_lead", "lead_id": "xxx"}
+
+For listing leads by status:
+{"action": "list_leads", "filter": {"status": "Interested"}}
+
+For scheduling follow-up:
+{"action": "schedule_followup", "lead_id": "xxx", "date": "2024-03-20", "time": "10:00 AM"}
+
+For navigation:
+{"action": "navigate", "screen": "leads/followups/dashboard/settings/add-lead"}
 
 IMPORTANT RULES:
-- Always be professional, precise, and helpful
+- Be professional, precise, and helpful
 - Never make spelling mistakes
-- Listen carefully and confirm understanding
-- When taking actions, always confirm with the user first
+- Confirm actions before executing when dealing with delete operations
 - Provide clear, actionable responses
-- Format responses clearly with bullet points when listing items
-
-If user asks to perform an action, respond with a JSON action object like:
-{"action": "add_lead", "data": {"name": "...", "mobile": "..."}}
-{"action": "search_leads", "query": "..."}
-{"action": "schedule_followup", "lead_id": "...", "date": "...", "time": "..."}
-{"action": "navigate", "screen": "leads/followups/dashboard/settings"}
+- When listing leads, show name, mobile, status, and product
+- For dates, use YYYY-MM-DD format internally
 
 Current date: """ + datetime.utcnow().strftime("%Y-%m-%d")
 
 @api_router.post("/assistant/chat")
 async def chat_with_assistant(request: AIAssistantRequest):
     try:
-        # Get context about leads for better responses
+        # Get comprehensive context about leads
         leads_count = await db.leads.count_documents({})
         today = datetime.utcnow().date().isoformat()
         today_followups = await db.leads.count_documents({"next_followup_date": today})
         
-        context_info = f"\nCurrent CRM Status: {leads_count} total leads, {today_followups} follow-ups today."
+        # Get status breakdown
+        status_counts = {}
+        for status in ["New", "Contacted", "Interested", "Proposal", "Closed", "Not Interested"]:
+            count = await db.leads.count_documents({"status": status})
+            status_counts[status] = count
+        
+        # Get recent leads for context
+        recent_leads = await db.leads.find().sort("created_at", -1).limit(5).to_list(5)
+        recent_leads_info = []
+        for lead in recent_leads:
+            recent_leads_info.append({
+                "id": str(lead["_id"]),
+                "name": lead.get("name", ""),
+                "mobile": lead.get("mobile", ""),
+                "status": lead.get("status", ""),
+                "product": lead.get("product", "")
+            })
+        
+        context_info = f"""
+Current CRM Status:
+- Total Leads: {leads_count}
+- Today's Follow-ups: {today_followups}
+- Status Breakdown: {json.dumps(status_counts)}
+- Recent Leads: {json.dumps(recent_leads_info)}
+"""
         
         if request.context:
             context_info += f"\nUser context: {json.dumps(request.context)}"
@@ -538,23 +584,140 @@ async def chat_with_assistant(request: AIAssistantRequest):
         
         # Check if response contains an action
         action = None
+        action_result = None
+        
         if '{"action"' in response_text:
             try:
                 import re
-                action_match = re.search(r'\{["\']action["\'].*?\}', response_text, re.DOTALL)
+                action_match = re.search(r'\{["\']action["\'][^}]+\}', response_text, re.DOTALL)
                 if action_match:
-                    action = json.loads(action_match.group())
-            except:
-                pass
+                    action_str = action_match.group()
+                    # Fix common JSON issues
+                    action_str = action_str.replace("'", '"')
+                    action = json.loads(action_str)
+                    
+                    # Execute the action
+                    action_result = await execute_ai_action(action)
+            except Exception as e:
+                logger.error(f"Error parsing action: {e}")
         
-        return AIAssistantResponse(response=response_text, action=action)
+        return AIAssistantResponse(
+            response=response_text, 
+            action=action,
+            data=action_result
+        )
         
     except Exception as e:
         logger.error(f"AI Assistant error: {str(e)}")
         return AIAssistantResponse(
             response="I apologize, but I encountered an error processing your request. Please try again.",
-            action=None
+            action=None,
+            data=None
         )
+
+async def execute_ai_action(action: dict):
+    """Execute AI-requested actions on leads"""
+    action_type = action.get("action")
+    
+    try:
+        if action_type == "add_lead":
+            data = action.get("data", {})
+            lead_data = {
+                "name": data.get("name", ""),
+                "mobile": data.get("mobile", ""),
+                "product": data.get("product", ""),
+                "status": data.get("status", "New"),
+                "source": data.get("source", "AI Assistant"),
+                "city": data.get("city", ""),
+                "notes": data.get("notes", "Added via AI Assistant"),
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            result = await db.leads.insert_one(lead_data)
+            return {"success": True, "lead_id": str(result.inserted_id), "message": "Lead added successfully"}
+        
+        elif action_type == "search_leads":
+            query = action.get("query", "")
+            search_query = {
+                "$or": [
+                    {"name": {"$regex": query, "$options": "i"}},
+                    {"mobile": {"$regex": query, "$options": "i"}},
+                    {"city": {"$regex": query, "$options": "i"}},
+                    {"product": {"$regex": query, "$options": "i"}}
+                ]
+            }
+            leads = await db.leads.find(search_query).limit(10).to_list(10)
+            results = []
+            for lead in leads:
+                results.append({
+                    "id": str(lead["_id"]),
+                    "name": lead.get("name"),
+                    "mobile": lead.get("mobile"),
+                    "status": lead.get("status"),
+                    "product": lead.get("product"),
+                    "city": lead.get("city")
+                })
+            return {"success": True, "leads": results, "count": len(results)}
+        
+        elif action_type == "update_lead":
+            lead_id = action.get("lead_id")
+            data = action.get("data", {})
+            if lead_id and ObjectId.is_valid(lead_id):
+                data["updated_at"] = datetime.utcnow()
+                await db.leads.update_one({"_id": ObjectId(lead_id)}, {"$set": data})
+                return {"success": True, "message": "Lead updated successfully"}
+            return {"success": False, "message": "Invalid lead ID"}
+        
+        elif action_type == "delete_lead":
+            lead_id = action.get("lead_id")
+            if lead_id and ObjectId.is_valid(lead_id):
+                await db.leads.delete_one({"_id": ObjectId(lead_id)})
+                return {"success": True, "message": "Lead deleted successfully"}
+            return {"success": False, "message": "Invalid lead ID"}
+        
+        elif action_type == "get_lead":
+            lead_id = action.get("lead_id")
+            if lead_id and ObjectId.is_valid(lead_id):
+                lead = await db.leads.find_one({"_id": ObjectId(lead_id)})
+                if lead:
+                    lead["id"] = str(lead["_id"])
+                    del lead["_id"]
+                    return {"success": True, "lead": lead}
+            return {"success": False, "message": "Lead not found"}
+        
+        elif action_type == "list_leads":
+            filter_data = action.get("filter", {})
+            leads = await db.leads.find(filter_data).limit(20).to_list(20)
+            results = []
+            for lead in leads:
+                results.append({
+                    "id": str(lead["_id"]),
+                    "name": lead.get("name"),
+                    "mobile": lead.get("mobile"),
+                    "status": lead.get("status"),
+                    "product": lead.get("product")
+                })
+            return {"success": True, "leads": results, "count": len(results)}
+        
+        elif action_type == "schedule_followup":
+            lead_id = action.get("lead_id")
+            date = action.get("date")
+            time = action.get("time")
+            if lead_id and ObjectId.is_valid(lead_id):
+                update_data = {"updated_at": datetime.utcnow()}
+                if date:
+                    update_data["next_followup_date"] = date
+                if time:
+                    update_data["next_followup_time"] = time
+                await db.leads.update_one({"_id": ObjectId(lead_id)}, {"$set": update_data})
+                return {"success": True, "message": "Follow-up scheduled successfully"}
+            return {"success": False, "message": "Invalid lead ID"}
+        
+        return {"success": False, "message": "Unknown action"}
+        
+    except Exception as e:
+        logger.error(f"Error executing AI action: {e}")
+        return {"success": False, "message": str(e)}
 
 # User Settings endpoints
 class UserSettings(BaseModel):

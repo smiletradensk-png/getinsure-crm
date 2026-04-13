@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { Text, Card, Button, Switch, Divider, List, TextInput } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal } from 'react-native';
+import { Text, Card, Button, Switch, Divider, List, TextInput, Chip, IconButton, RadioButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -13,6 +13,13 @@ import * as Clipboard from 'expo-clipboard';
 
 const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL;
 
+const FONT_SIZES = [
+  { label: 'Small', value: 'small', size: 12 },
+  { label: 'Medium', value: 'medium', size: 14 },
+  { label: 'Large', value: 'large', size: 16 },
+  { label: 'Extra Large', value: 'extra-large', size: 18 },
+];
+
 export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -22,12 +29,27 @@ export default function SettingsScreen() {
   const [userPhone, setUserPhone] = useState('');
   const [verifyToken, setVerifyToken] = useState('GETINSURE_VERIFY_TOKEN_2024');
 
+  // Font Size state
+  const [fontSize, setFontSize] = useState('medium');
+  
+  // Dropdown customization state
+  const [customProducts, setCustomProducts] = useState<string[]>([]);
+  const [customStatuses, setCustomStatuses] = useState<string[]>([]);
+  const [customSources, setCustomSources] = useState<string[]>([]);
+  const [customCities, setCustomCities] = useState<string[]>([]);
+  
+  // Modal state for adding items
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalType, setAddModalType] = useState<'products' | 'statuses' | 'sources' | 'cities'>('products');
+  const [newItemValue, setNewItemValue] = useState('');
+
   // Facebook Webhook URL
   const webhookUrl = `${BACKEND_URL}/api/facebook/webhook`;
 
   useEffect(() => {
     loadUserInfo();
     loadVerifyToken();
+    loadUserSettings();
   }, []);
 
   const loadUserInfo = async () => {
@@ -46,6 +68,142 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Error loading verify token:', error);
     }
+  };
+
+  const loadUserSettings = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/settings/user`);
+      const settings = await response.json();
+      setFontSize(settings.font_size || 'medium');
+      setCustomProducts(settings.custom_products || []);
+      setCustomStatuses(settings.custom_statuses || []);
+      setCustomSources(settings.custom_sources || []);
+      setCustomCities(settings.custom_cities || []);
+      
+      // Save font size locally for app-wide use
+      await AsyncStorage.setItem('fontSize', settings.font_size || 'medium');
+    } catch (error) {
+      console.error('Error loading user settings:', error);
+    }
+  };
+
+  const updateFontSize = async (newSize: string) => {
+    setFontSize(newSize);
+    try {
+      await AsyncStorage.setItem('fontSize', newSize);
+      await fetch(`${BACKEND_URL}/api/settings/user`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          font_size: newSize,
+          custom_products: customProducts,
+          custom_statuses: customStatuses,
+          custom_sources: customSources,
+          custom_cities: customCities,
+        }),
+      });
+      Alert.alert('Success', 'Font size updated!');
+    } catch (error) {
+      console.error('Error updating font size:', error);
+    }
+  };
+
+  const openAddModal = (type: 'products' | 'statuses' | 'sources' | 'cities') => {
+    setAddModalType(type);
+    setNewItemValue('');
+    setShowAddModal(true);
+  };
+
+  const addDropdownItem = async () => {
+    if (!newItemValue.trim()) {
+      Alert.alert('Error', 'Please enter a value');
+      return;
+    }
+
+    const dropdownTypeMap = {
+      products: 'custom_products',
+      statuses: 'custom_statuses',
+      sources: 'custom_sources',
+      cities: 'custom_cities',
+    };
+
+    try {
+      await fetch(`${BACKEND_URL}/api/settings/dropdown/${dropdownTypeMap[addModalType]}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: newItemValue.trim() }),
+      });
+
+      // Update local state
+      switch (addModalType) {
+        case 'products':
+          setCustomProducts([...customProducts, newItemValue.trim()]);
+          break;
+        case 'statuses':
+          setCustomStatuses([...customStatuses, newItemValue.trim()]);
+          break;
+        case 'sources':
+          setCustomSources([...customSources, newItemValue.trim()]);
+          break;
+        case 'cities':
+          setCustomCities([...customCities, newItemValue.trim()]);
+          break;
+      }
+
+      setShowAddModal(false);
+      setNewItemValue('');
+      Alert.alert('Success', 'Item added successfully!');
+    } catch (error) {
+      console.error('Error adding dropdown item:', error);
+      Alert.alert('Error', 'Failed to add item');
+    }
+  };
+
+  const deleteDropdownItem = async (type: 'products' | 'statuses' | 'sources' | 'cities', item: string) => {
+    Alert.alert(
+      'Delete Item',
+      `Are you sure you want to delete "${item}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const dropdownTypeMap = {
+              products: 'custom_products',
+              statuses: 'custom_statuses',
+              sources: 'custom_sources',
+              cities: 'custom_cities',
+            };
+
+            try {
+              await fetch(`${BACKEND_URL}/api/settings/dropdown/${dropdownTypeMap[type]}/${encodeURIComponent(item)}`, {
+                method: 'DELETE',
+              });
+
+              // Update local state
+              switch (type) {
+                case 'products':
+                  setCustomProducts(customProducts.filter(p => p !== item));
+                  break;
+                case 'statuses':
+                  setCustomStatuses(customStatuses.filter(s => s !== item));
+                  break;
+                case 'sources':
+                  setCustomSources(customSources.filter(s => s !== item));
+                  break;
+                case 'cities':
+                  setCustomCities(customCities.filter(c => c !== item));
+                  break;
+              }
+            } catch (error) {
+              console.error('Error deleting dropdown item:', error);
+              Alert.alert('Error', 'Failed to delete item');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const saveVerifyToken = async () => {
@@ -498,6 +656,169 @@ export default function SettingsScreen() {
             </Card.Content>
           </Card>
 
+          {/* Font Size Settings */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="format-size" size={32} color="#673AB7" />
+                <Text variant="titleLarge" style={styles.cardTitle}>
+                  Font Size
+                </Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.cardDescription}>
+                Adjust text size for better readability
+              </Text>
+
+              <View style={styles.fontSizeOptions}>
+                {FONT_SIZES.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.fontSizeButton,
+                      fontSize === option.value && styles.fontSizeButtonActive,
+                    ]}
+                    onPress={() => updateFontSize(option.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.fontSizeButtonText,
+                        { fontSize: option.size },
+                        fontSize === option.value && styles.fontSizeButtonTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.fontPreview}>
+                <Text style={[styles.previewLabel, { fontSize: FONT_SIZES.find(f => f.value === fontSize)?.size || 14 }]}>
+                  Preview: This is how text will appear
+                </Text>
+              </View>
+            </Card.Content>
+          </Card>
+
+          {/* Dropdown Customization */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="form-dropdown" size={32} color="#FF5722" />
+                <Text variant="titleLarge" style={styles.cardTitle}>
+                  Customize Dropdowns
+                </Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.cardDescription}>
+                Add or remove options in dropdown menus
+              </Text>
+
+              {/* Products */}
+              <View style={styles.dropdownSection}>
+                <View style={styles.dropdownHeader}>
+                  <Text variant="titleMedium" style={styles.dropdownTitle}>Products</Text>
+                  <IconButton
+                    icon="plus-circle"
+                    iconColor="#FF5722"
+                    size={24}
+                    onPress={() => openAddModal('products')}
+                  />
+                </View>
+                <View style={styles.chipsContainer}>
+                  {customProducts.map((item) => (
+                    <Chip
+                      key={item}
+                      style={styles.dropdownChip}
+                      onClose={() => deleteDropdownItem('products', item)}
+                      closeIcon="close-circle"
+                    >
+                      {item}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
+              {/* Statuses */}
+              <View style={styles.dropdownSection}>
+                <View style={styles.dropdownHeader}>
+                  <Text variant="titleMedium" style={styles.dropdownTitle}>Statuses</Text>
+                  <IconButton
+                    icon="plus-circle"
+                    iconColor="#FF5722"
+                    size={24}
+                    onPress={() => openAddModal('statuses')}
+                  />
+                </View>
+                <View style={styles.chipsContainer}>
+                  {customStatuses.map((item) => (
+                    <Chip
+                      key={item}
+                      style={styles.dropdownChip}
+                      onClose={() => deleteDropdownItem('statuses', item)}
+                      closeIcon="close-circle"
+                    >
+                      {item}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
+              {/* Sources */}
+              <View style={styles.dropdownSection}>
+                <View style={styles.dropdownHeader}>
+                  <Text variant="titleMedium" style={styles.dropdownTitle}>Lead Sources</Text>
+                  <IconButton
+                    icon="plus-circle"
+                    iconColor="#FF5722"
+                    size={24}
+                    onPress={() => openAddModal('sources')}
+                  />
+                </View>
+                <View style={styles.chipsContainer}>
+                  {customSources.map((item) => (
+                    <Chip
+                      key={item}
+                      style={styles.dropdownChip}
+                      onClose={() => deleteDropdownItem('sources', item)}
+                      closeIcon="close-circle"
+                    >
+                      {item}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
+              {/* Cities */}
+              <View style={styles.dropdownSection}>
+                <View style={styles.dropdownHeader}>
+                  <Text variant="titleMedium" style={styles.dropdownTitle}>Cities</Text>
+                  <IconButton
+                    icon="plus-circle"
+                    iconColor="#FF5722"
+                    size={24}
+                    onPress={() => openAddModal('cities')}
+                  />
+                </View>
+                <View style={styles.chipsContainer}>
+                  {customCities.length > 0 ? (
+                    customCities.map((item) => (
+                      <Chip
+                        key={item}
+                        style={styles.dropdownChip}
+                        onClose={() => deleteDropdownItem('cities', item)}
+                        closeIcon="close-circle"
+                      >
+                        {item}
+                      </Chip>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>No custom cities added</Text>
+                  )}
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+
           {/* About */}
           <Card style={styles.card}>
             <Card.Content>
@@ -520,6 +841,55 @@ export default function SettingsScreen() {
           </Card>
         </View>
       </ScrollView>
+
+      {/* Add Item Modal */}
+      <Modal
+        visible={showAddModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text variant="titleLarge" style={styles.modalTitle}>
+                Add {addModalType === 'products' ? 'Product' : addModalType === 'statuses' ? 'Status' : addModalType === 'sources' ? 'Lead Source' : 'City'}
+              </Text>
+              <IconButton icon="close" onPress={() => setShowAddModal(false)} />
+            </View>
+            
+            <TextInput
+              value={newItemValue}
+              onChangeText={setNewItemValue}
+              mode="outlined"
+              placeholder={`Enter ${addModalType === 'products' ? 'product name' : addModalType === 'statuses' ? 'status name' : addModalType === 'sources' ? 'source name' : 'city name'}`}
+              style={styles.modalInput}
+              outlineColor="#FF5722"
+              activeOutlineColor="#FF5722"
+              autoFocus
+            />
+            
+            <View style={styles.modalButtons}>
+              <Button
+                mode="outlined"
+                onPress={() => setShowAddModal(false)}
+                style={styles.modalButton}
+                textColor="#757575"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={addDropdownItem}
+                style={styles.modalButton}
+                buttonColor="#FF5722"
+              >
+                Add
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -653,5 +1023,105 @@ const styles = StyleSheet.create({
   instructionsText: {
     color: '#424242',
     lineHeight: 20,
+  },
+  // Font Size styles
+  fontSizeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  fontSizeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+  },
+  fontSizeButtonActive: {
+    borderColor: '#673AB7',
+    backgroundColor: '#EDE7F6',
+  },
+  fontSizeButtonText: {
+    color: '#424242',
+  },
+  fontSizeButtonTextActive: {
+    color: '#673AB7',
+    fontWeight: 'bold',
+  },
+  fontPreview: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  previewLabel: {
+    color: '#424242',
+  },
+  // Dropdown customization styles
+  dropdownSection: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownTitle: {
+    fontWeight: 'bold',
+    color: '#424242',
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  dropdownChip: {
+    backgroundColor: '#FBE9E7',
+  },
+  emptyText: {
+    color: '#9E9E9E',
+    fontStyle: 'italic',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontWeight: 'bold',
+    color: '#424242',
+  },
+  modalInput: {
+    backgroundColor: '#FFFFFF',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 20,
+  },
+  modalButton: {
+    minWidth: 80,
   },
 });
