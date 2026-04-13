@@ -14,9 +14,13 @@ import json
 import io
 from fastapi.responses import StreamingResponse
 import pandas as pd
+from emergentintegrations.llm.openai import LlmChat, UserMessage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Emergent LLM Key for AI Assistant
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', 'sk-emergent-cE90dF5Cc5b089fB38')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -469,7 +473,152 @@ async def import_excel(file: UploadFile):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to import: {str(e)}")
 
-# Include the router in the main app
+# AI Assistant endpoint
+class AIAssistantRequest(BaseModel):
+    message: str
+    context: Optional[dict] = None
+
+class AIAssistantResponse(BaseModel):
+    response: str
+    action: Optional[dict] = None
+
+ASSISTANT_SYSTEM_PROMPT = """You are GETINSURE AI, a powerful and precise personal assistant for an Insurance CRM app. 
+You help users manage their leads, schedule follow-ups, track interactions, and get insights about their business.
+
+Your capabilities include:
+1. Adding new leads - Ask for name, mobile, product, status, source, city
+2. Searching leads - By name, mobile, city, or status
+3. Scheduling follow-ups - Set dates and times for lead follow-ups
+4. Adding interactions - Log calls, meetings, emails with leads
+5. Getting statistics - Show dashboard stats, pipeline status
+6. Generating reports - Lead counts, conversion rates, follow-up stats
+7. WhatsApp messages - Help compose professional messages
+8. General CRM advice - Best practices for lead management
+
+IMPORTANT RULES:
+- Always be professional, precise, and helpful
+- Never make spelling mistakes
+- Listen carefully and confirm understanding
+- When taking actions, always confirm with the user first
+- Provide clear, actionable responses
+- Format responses clearly with bullet points when listing items
+
+If user asks to perform an action, respond with a JSON action object like:
+{"action": "add_lead", "data": {"name": "...", "mobile": "..."}}
+{"action": "search_leads", "query": "..."}
+{"action": "schedule_followup", "lead_id": "...", "date": "...", "time": "..."}
+{"action": "navigate", "screen": "leads/followups/dashboard/settings"}
+
+Current date: """ + datetime.utcnow().strftime("%Y-%m-%d")
+
+@api_router.post("/assistant/chat")
+async def chat_with_assistant(request: AIAssistantRequest):
+    try:
+        # Get context about leads for better responses
+        leads_count = await db.leads.count_documents({})
+        today = datetime.utcnow().date().isoformat()
+        today_followups = await db.leads.count_documents({"next_followup_date": today})
+        
+        context_info = f"\nCurrent CRM Status: {leads_count} total leads, {today_followups} follow-ups today."
+        
+        if request.context:
+            context_info += f"\nUser context: {json.dumps(request.context)}"
+        
+        full_system_prompt = ASSISTANT_SYSTEM_PROMPT + context_info
+        
+        # Use LlmChat for the AI response
+        llm = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id="crm_assistant",
+            system_message=full_system_prompt
+        )
+        
+        response = await llm.send_message(UserMessage(text=request.message))
+        response_text = response if isinstance(response, str) else str(response)
+        
+        # Check if response contains an action
+        action = None
+        if '{"action"' in response_text:
+            try:
+                import re
+                action_match = re.search(r'\{["\']action["\'].*?\}', response_text, re.DOTALL)
+                if action_match:
+                    action = json.loads(action_match.group())
+            except:
+                pass
+        
+        return AIAssistantResponse(response=response_text, action=action)
+        
+    except Exception as e:
+        logger.error(f"AI Assistant error: {str(e)}")
+        return AIAssistantResponse(
+            response="I apologize, but I encountered an error processing your request. Please try again.",
+            action=None
+        )
+
+# User Settings endpoints
+class UserSettings(BaseModel):
+    font_size: str = "medium"  # small, medium, large, extra-large
+    custom_products: List[str] = []
+    custom_statuses: List[str] = []
+    custom_sources: List[str] = []
+    custom_cities: List[str] = []
+
+@api_router.get("/settings/user")
+async def get_user_settings():
+    settings = await db.user_settings.find_one({"user_id": "default"})
+    if not settings:
+        default_settings = {
+            "user_id": "default",
+            "font_size": "medium",
+            "custom_products": ["Term Insurance", "Health Insurance", "Motor Insurance", "Life Insurance", "Travel Insurance"],
+            "custom_statuses": ["New", "Contacted", "Interested", "Proposal", "Closed", "Not Interested", "Follow-up", "Pipeline"],
+            "custom_sources": ["Walk-in", "Reference", "Online", "Facebook Ads", "Google Ads", "WhatsApp", "Other"],
+            "custom_cities": []
+        }
+        await db.user_settings.insert_one(default_settings)
+        return default_settings
+    settings['id'] = str(settings['_id'])
+    del settings['_id']
+    return settings
+
+@api_router.put("/settings/user")
+async def update_user_settings(settings: UserSettings):
+    result = await db.user_settings.update_one(
+        {"user_id": "default"},
+        {"$set": settings.dict()},
+        upsert=True
+    )
+    return {"message": "Settings updated successfully"}
+
+@api_router.post("/settings/dropdown/{dropdown_type}")
+async def add_dropdown_item(dropdown_type: str, item: dict):
+    """Add a new item to a dropdown list"""
+    valid_types = ["custom_products", "custom_statuses", "custom_sources", "custom_cities"]
+    if dropdown_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Invalid dropdown type")
+    
+    await db.user_settings.update_one(
+        {"user_id": "default"},
+        {"$addToSet": {dropdown_type: item.get("value")}},
+        upsert=True
+    )
+    return {"message": f"Added to {dropdown_type}"}
+
+@api_router.delete("/settings/dropdown/{dropdown_type}/{item}")
+async def delete_dropdown_item(dropdown_type: str, item: str):
+    """Delete an item from a dropdown list"""
+    valid_types = ["custom_products", "custom_statuses", "custom_sources", "custom_cities"]
+    if dropdown_type not in valid_types:
+        raise HTTPException(status_code=400, detail="Invalid dropdown type")
+    
+    await db.user_settings.update_one(
+        {"user_id": "default"},
+        {"$pull": {dropdown_type: item}}
+    )
+    return {"message": f"Removed from {dropdown_type}"}
+
+# Include the router in the main app - MUST BE AFTER ALL ROUTE DEFINITIONS
 app.include_router(api_router)
 
 app.add_middleware(
