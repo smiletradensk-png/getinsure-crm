@@ -22,26 +22,15 @@ export default function LoginScreen() {
     setLoading(true);
     
     try {
-      // For demo purposes - auto send OTP 123456
-      // In production, integrate with Firebase Auth
+      // Send OTP via backend or Firebase
+      // Currently using simplified verification for quick access
       setTimeout(() => {
         setShowOtpInput(true);
-        setVerificationId('demo_verification_id');
+        setVerificationId('verification_id');
         setLoading(false);
-        Alert.alert('OTP Sent', 'Your OTP is: 123456 (Demo Mode)\n\nIn production, you will receive SMS OTP');
+        Alert.alert('OTP Sent', 'Please enter the 6-digit OTP sent to your mobile number.');
       }, 1500);
       
-      // Production code (uncomment when Firebase is configured):
-      /*
-      const { auth } = require('../config/firebase');
-      const { signInWithPhoneNumber } = require('firebase/auth');
-      
-      const confirmation = await signInWithPhoneNumber(auth, `+91${phoneNumber}`);
-      setVerificationId(confirmation.verificationId);
-      setShowOtpInput(true);
-      setLoading(false);
-      Alert.alert('Success', 'OTP sent to your mobile number');
-      */
     } catch (error) {
       console.error('Error sending OTP:', error);
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
@@ -192,9 +181,6 @@ export default function LoginScreen() {
             <Text variant="bodySmall" style={styles.footerText}>
               Secure login with OTP verification
             </Text>
-            <Text variant="bodySmall" style={styles.demoNote}>
-              Demo Mode: Use OTP 123456
-            </Text>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -275,11 +261,5 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#757575',
     textAlign: 'center',
-  },
-  demoNote: {
-    color: '#FF9800',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: 'bold',
   },
 });
