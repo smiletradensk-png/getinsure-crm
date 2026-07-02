@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { View, Modal, TouchableOpacity, ScrollView, TextInput as RNTextInput, KeyboardAvoidingView, Platform, Alert, StyleSheet } from 'react-native';
 import { Text, ActivityIndicator, IconButton } from 'react-native-paper';
@@ -23,6 +23,7 @@ export default function TabLayout() {
   ]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const sendMessage = async () => {
     if (!inputText.trim()) return;
@@ -94,6 +95,7 @@ export default function TabLayout() {
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -152,7 +154,7 @@ export default function TabLayout() {
               <IconButton icon="close" iconColor="#757575" size={24} onPress={() => setAiVisible(false)} />
             </View>
 
-            <ScrollView style={styles.messagesContainer} contentContainerStyle={styles.messagesContent}>
+            <ScrollView ref={scrollRef} style={styles.messagesContainer} contentContainerStyle={styles.messagesContent}>
               {messages.map((message) => (
                 <View key={message.id} style={[styles.messageBubble, message.isUser ? styles.userBubble : styles.aiBubble]}>
                   {!message.isUser && <MaterialCommunityIcons name="robot" size={16} color="#009688" style={styles.aiIcon} />}

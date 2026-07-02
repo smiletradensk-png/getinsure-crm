@@ -304,7 +304,7 @@ export default function LeadsScreen() {
 
                     {lead.next_followup_date ? (
                       <Text variant="bodySmall" style={styles.followupText}>
-                        📅 Follow-up: {lead.next_followup_date}
+                        📅 Follow-up: {lead.next_followup_date.split('-').reverse().join('-')}
                       </Text>
                     ) : null}
 

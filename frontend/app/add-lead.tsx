@@ -63,6 +63,7 @@ export default function AddLeadScreen() {
   const [nextFollowupType, setNextFollowupType] = useState('WhatsApp');
   const [loading, setLoading] = useState(false);
   const [fetchingLead, setFetchingLead] = useState(false);
+  const [originalCreatedAt, setOriginalCreatedAt] = useState('');
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -113,6 +114,7 @@ export default function AddLeadScreen() {
         setNextFollowupDate(data.next_followup_date ? formatDateToDDMMYYYY(data.next_followup_date) : '');
         setNextFollowupTime(data.next_followup_time || '10:00');
         setNextFollowupType(data.next_followup_type || 'WhatsApp');
+        setOriginalCreatedAt(data.created_at || '');
       }
     } catch (error) {
       console.error('Error fetching lead:', error);
@@ -153,7 +155,7 @@ export default function AddLeadScreen() {
         next_followup_date: nextFollowupDate ? formatDateToYYYYMMDD(nextFollowupDate) : '',
         next_followup_time: nextFollowupTime,
         next_followup_type: nextFollowupType,
-        created_at: isEditMode ? undefined : new Date().toISOString(),
+        created_at: isEditMode ? (originalCreatedAt || new Date().toISOString()) : new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 

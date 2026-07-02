@@ -18,6 +18,10 @@ import { useAppSettings, type FontSize } from '../../context/AppSettingsContext'
 import {
   syncFacebookLeads, saveFbWebhookConfig, getFbWebhookConfig, getLastSyncTime,
 } from '../../utils/facebookSync';
+import {
+  getBackupFolderUri, getLastBackupTime, requestBackupFolderAccess,
+  performAutoBackup, checkForBackupFile, restoreFromBackup, clearBackupFolder,
+} from '../../utils/autoBackup';
 
 // ─── CSV helpers ─────────────────────────────────────────────────────────────
 
@@ -80,6 +84,11 @@ export default function SettingsScreen() {
   const [lastFbSync, setLastFbSync] = useState('');
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
 
+  // Auto backup
+  const [backupFolderSet, setBackupFolderSet] = useState(false);
+  const [lastBackupTime, setLastBackupTime] = useState('');
+  const [backupInProgress, setBackupInProgress] = useState(false);
+
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
@@ -91,7 +100,102 @@ export default function SettingsScreen() {
       setWebhookKey(appKey || '');
       const last = await getLastSyncTime();
       if (last !== '1970-01-01T00:00:00.000Z') setLastFbSync(last);
+      // Auto backup status
+      const dirUri = await getBackupFolderUri();
+      setBackupFolderSet(!!dirUri);
+      const lastBk = await getLastBackupTime();
+      if (lastBk) setLastBackupTime(lastBk);
     } catch {}
+  };
+
+  const handleSetupBackup = async () => {
+    Alert.alert(
+      'Choose Backup Folder',
+      'Pick a folder where GETINSURE CRM will save daily backups. We recommend selecting the Downloads folder.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Choose Folder',
+          onPress: async () => {
+            const granted = await requestBackupFolderAccess();
+            if (granted) {
+              setBackupFolderSet(true);
+              setBackupInProgress(true);
+              const result = await performAutoBackup();
+              setBackupInProgress(false);
+              if (result.success) {
+                const t = new Date().toISOString();
+                setLastBackupTime(t);
+                Alert.alert('Backup Ready', `${result.leadsCount} leads backed up to your chosen folder. Auto-backup will run daily.`);
+              } else {
+                Alert.alert('Folder Set', 'Backup folder saved. Auto-backup will run on next app open.');
+              }
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleBackupNow = async () => {
+    setBackupInProgress(true);
+    const result = await performAutoBackup();
+    setBackupInProgress(false);
+    if (result.success) {
+      const t = new Date().toISOString();
+      setLastBackupTime(t);
+      Alert.alert('Backup Complete', `${result.leadsCount} leads saved to Downloads folder.`);
+    } else {
+      Alert.alert('Backup Failed', result.error === 'no_folder_set'
+        ? 'No backup folder selected. Tap "Setup" first.'
+        : (result.error ?? 'Unknown error. Please try again.'));
+    }
+  };
+
+  const handleRestoreFromBackup = async () => {
+    const backup = await checkForBackupFile();
+    if (!backup.found || !backup.leads || backup.leads.length === 0) {
+      Alert.alert('No Backup Found', 'No backup file was found in the selected folder.');
+      return;
+    }
+    const dateStr = backup.backupDate
+      ? new Date(backup.backupDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : 'unknown date';
+    Alert.alert(
+      'Restore Backup',
+      `Found ${backup.leads.length} leads from ${dateStr}. Restore them now? Existing leads will not be removed — duplicates are automatically skipped.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          onPress: async () => {
+            setBackupInProgress(true);
+            const { restored } = await restoreFromBackup(backup.leads!);
+            setBackupInProgress(false);
+            Alert.alert('Done', `${restored} leads restored successfully.`);
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRemoveBackupFolder = () => {
+    Alert.alert(
+      'Remove Backup Folder',
+      'This will stop daily auto-backup. Your existing backup file in Downloads will not be deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await clearBackupFolder();
+            setBackupFolderSet(false);
+            setLastBackupTime('');
+          },
+        },
+      ],
+    );
   };
 
   const handleLogout = () => {
@@ -576,15 +680,97 @@ export default function SettingsScreen() {
             </Card.Content>
           </Card>
 
-          {/* ── Backup ── */}
+          {/* ── Auto Backup (Downloads folder) ── */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="folder-download" size={32} color="#4CAF50" />
+                <Text variant="titleLarge" style={styles.cardTitle}>Auto Backup</Text>
+              </View>
+              <Text variant="bodyMedium" style={styles.cardDescription}>
+                Automatically saves leads to your Downloads folder daily. Restores data after reinstall.
+              </Text>
+
+              <View style={styles.syncStatusRow}>
+                <MaterialCommunityIcons
+                  name={backupFolderSet ? 'check-circle' : 'circle-outline'}
+                  size={18}
+                  color={backupFolderSet ? '#4CAF50' : '#BDBDBD'}
+                />
+                <Text style={[styles.syncStatusText, { color: backupFolderSet ? '#4CAF50' : '#9E9E9E' }]}>
+                  {backupFolderSet
+                    ? (lastBackupTime
+                        ? `Last backup: ${new Date(lastBackupTime).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Folder set — not backed up yet')
+                    : 'Not configured — tap Setup to enable'}
+                </Text>
+              </View>
+
+              {!backupFolderSet ? (
+                <Button
+                  mode="contained"
+                  onPress={handleSetupBackup}
+                  icon="folder-open"
+                  buttonColor="#4CAF50"
+                  loading={backupInProgress}
+                  disabled={backupInProgress}
+                  style={styles.button}
+                >
+                  Setup Auto Backup
+                </Button>
+              ) : (
+                <>
+                  <View style={styles.exportButtons}>
+                    <Button
+                      mode="contained"
+                      onPress={handleBackupNow}
+                      icon="content-save"
+                      buttonColor="#4CAF50"
+                      loading={backupInProgress}
+                      disabled={backupInProgress}
+                      style={styles.halfButton}
+                    >
+                      Backup Now
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={handleRestoreFromBackup}
+                      icon="restore"
+                      textColor="#4CAF50"
+                      disabled={backupInProgress}
+                      style={styles.halfButton}
+                    >
+                      Restore
+                    </Button>
+                  </View>
+                  <Button
+                    mode="text"
+                    onPress={handleRemoveBackupFolder}
+                    icon="folder-remove"
+                    textColor="#9E9E9E"
+                    style={{ marginTop: 4 }}
+                    compact
+                  >
+                    Change / Remove Folder
+                  </Button>
+                </>
+              )}
+
+              <Text variant="bodySmall" style={styles.noteText}>
+                Backup file: getinsure_backup.json in your chosen folder
+              </Text>
+            </Card.Content>
+          </Card>
+
+          {/* ── Manual Backup (share) ── */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="backup-restore" size={32} color="#2196F3" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Backup</Text>
+                <Text variant="titleLarge" style={styles.cardTitle}>Share Backup</Text>
               </View>
               <Text variant="bodyMedium" style={styles.cardDescription}>
-                Save a full backup — share to Google Drive or WhatsApp
+                Manually share a backup file to WhatsApp, Google Drive, or email
               </Text>
               <Button
                 mode="contained"
@@ -593,7 +779,7 @@ export default function SettingsScreen() {
                 buttonColor="#2196F3"
                 style={styles.button}
               >
-                Create Backup Now
+                Share Backup Now
               </Button>
             </Card.Content>
           </Card>
