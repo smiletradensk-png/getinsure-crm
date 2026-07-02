@@ -1,12 +1,14 @@
 import * as SQLite from 'expo-sqlite';
 
 let db: any = null;
+let dbInitialized = false;
 
-// Initialize database schema
 export const initializeDatabase = async () => {
+  if (dbInitialized && db) return;
+
   try {
     db = SQLite.openDatabaseSync('getinsure.db');
-    
+
     db.execSync(`
       CREATE TABLE IF NOT EXISTS leads (
         id TEXT PRIMARY KEY NOT NULL,
@@ -26,6 +28,21 @@ export const initializeDatabase = async () => {
         local_changes INTEGER DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS interactions (
+        id TEXT PRIMARY KEY NOT NULL,
+        lead_id TEXT NOT NULL,
+        type TEXT,
+        description TEXT,
+        location TEXT,
+        interaction_date TEXT,
+        interaction_time TEXT,
+        next_appointment_date TEXT,
+        next_appointment_time TEXT,
+        next_appointment_type TEXT,
+        next_appointment_note TEXT,
+        created_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS sync_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         lead_id TEXT,
@@ -37,111 +54,84 @@ export const initializeDatabase = async () => {
 
       CREATE INDEX IF NOT EXISTS idx_synced ON leads(synced);
       CREATE INDEX IF NOT EXISTS idx_mobile ON leads(mobile);
+      CREATE INDEX IF NOT EXISTS idx_interactions_lead ON interactions(lead_id);
     `);
+
+    dbInitialized = true;
     console.log('✅ SQLite Database initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
   }
 };
 
-// Create or update lead locally
-export const saveLeadLocal = async (lead: any) => {
-  if (!db) {
-    return { success: true, id: lead.id || Date.now().toString(), skipped: true };
+const ensureDb = async () => {
+  if (!db || !dbInitialized) {
+    await initializeDatabase();
   }
+};
+
+// ─── LEADS ───────────────────────────────────────────────
+
+export const saveLeadLocal = async (lead: any) => {
+  await ensureDb();
+  if (!db) return { success: false, error: 'DB not initialized' };
 
   try {
     const {
-      id,
-      name,
-      mobile,
-      product,
-      status,
-      source,
-      city,
-      notes,
-      next_followup_date,
-      next_followup_time,
-      next_followup_type,
-      created_at,
-      updated_at,
+      id, name, mobile, product, status, source, city, notes,
+      next_followup_date, next_followup_time, next_followup_type,
+      created_at, updated_at,
     } = lead;
 
-    const result = db.runSync(
+    const leadId = id || Date.now().toString();
+
+    db.runSync(
       `INSERT OR REPLACE INTO leads (
         id, name, mobile, product, status, source, city, notes,
         next_followup_date, next_followup_time, next_followup_type,
         created_at, updated_at, synced, local_changes
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
       [
-        id || Date.now().toString(),
-        name,
-        mobile,
-        product || '',
-        status || 'New',
-        source || '',
-        city || '',
-        notes || '',
-        next_followup_date || '',
-        next_followup_time || '',
-        next_followup_type || '',
+        leadId, name || '', mobile || '',
+        product || '', status || 'New', source || '', city || '', notes || '',
+        next_followup_date || '', next_followup_time || '', next_followup_type || '',
         created_at || new Date().toISOString(),
         updated_at || new Date().toISOString(),
       ]
     );
 
-    // Add to sync queue
-    db.runSync(
-      `INSERT INTO sync_queue (lead_id, action, data, timestamp) VALUES (?, ?, ?, ?)`,
-      [id, 'upsert', JSON.stringify(lead), new Date().toISOString()]
-    );
-
-    return { success: true, id: id || result.lastInsertRowId };
+    return { success: true, id: leadId };
   } catch (error) {
     console.error('Error saving lead locally:', error);
     return { success: false, error };
   }
 };
 
-// Get all leads from local database
 export const getAllLeadsLocal = (): any[] => {
   if (!db) return [];
-  
   try {
-    const result = db.getAllSync(`SELECT * FROM leads ORDER BY created_at DESC`);
-    return result;
+    return db.getAllSync(`SELECT * FROM leads ORDER BY created_at DESC`);
   } catch (error) {
     console.error('Error getting local leads:', error);
     return [];
   }
 };
 
-// Get single lead by ID
 export const getLeadByIdLocal = (id: string): any => {
   if (!db) return null;
-  
   try {
-    const result = db.getFirstSync(`SELECT * FROM leads WHERE id = ?`, [id]);
-    return result;
+    return db.getFirstSync(`SELECT * FROM leads WHERE id = ?`, [id]);
   } catch (error) {
     console.error('Error getting lead by ID:', error);
     return null;
   }
 };
 
-// Delete lead locally
 export const deleteLeadLocal = (id: string) => {
-  if (!db) return { success: true, skipped: true };
-  
+  if (!db) return { success: false };
   try {
     db.runSync(`DELETE FROM leads WHERE id = ?`, [id]);
-    
-    // Add to sync queue
-    db.runSync(
-      `INSERT INTO sync_queue (lead_id, action, timestamp) VALUES (?, ?, ?)`,
-      [id, 'delete', new Date().toISOString()]
-    );
-
+    db.runSync(`DELETE FROM interactions WHERE lead_id = ?`, [id]);
     return { success: true };
   } catch (error) {
     console.error('Error deleting lead locally:', error);
@@ -149,124 +139,129 @@ export const deleteLeadLocal = (id: string) => {
   }
 };
 
-// Search leads locally
 export const searchLeadsLocal = (query: string): any[] => {
   if (!db) return [];
-  
   try {
-    const result = db.getAllSync(
-      `SELECT * FROM leads 
-       WHERE name LIKE ? OR mobile LIKE ? OR city LIKE ?
-       ORDER BY created_at DESC`,
+    return db.getAllSync(
+      `SELECT * FROM leads WHERE name LIKE ? OR mobile LIKE ? OR city LIKE ? ORDER BY created_at DESC`,
       [`%${query}%`, `%${query}%`, `%${query}%`]
     );
-    return result;
   } catch (error) {
-    console.error('Error searching leads locally:', error);
+    console.error('Error searching leads:', error);
     return [];
   }
 };
 
-// Get unsynced leads
+// ─── INTERACTIONS ─────────────────────────────────────────
+
+export const saveInteractionLocal = async (interaction: any) => {
+  await ensureDb();
+  if (!db) return { success: false, error: 'DB not initialized' };
+
+  try {
+    const id = interaction.id || Date.now().toString();
+    db.runSync(
+      `INSERT OR REPLACE INTO interactions (
+        id, lead_id, type, description, location,
+        interaction_date, interaction_time,
+        next_appointment_date, next_appointment_time,
+        next_appointment_type, next_appointment_note, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        interaction.lead_id || '',
+        interaction.type || 'Call',
+        interaction.description || '',
+        interaction.location || '',
+        interaction.interaction_date || new Date().toISOString().split('T')[0],
+        interaction.interaction_time || '',
+        interaction.next_appointment_date || '',
+        interaction.next_appointment_time || '',
+        interaction.next_appointment_type || '',
+        interaction.next_appointment_note || '',
+        interaction.created_at || new Date().toISOString(),
+      ]
+    );
+    return { success: true, id };
+  } catch (error) {
+    console.error('Error saving interaction:', error);
+    return { success: false, error };
+  }
+};
+
+export const getInteractionsByLeadId = (leadId: string): any[] => {
+  if (!db) return [];
+  try {
+    return db.getAllSync(
+      `SELECT * FROM interactions WHERE lead_id = ? ORDER BY created_at DESC`,
+      [leadId]
+    );
+  } catch (error) {
+    console.error('Error getting interactions:', error);
+    return [];
+  }
+};
+
+export const deleteInteractionLocal = (id: string) => {
+  if (!db) return { success: false };
+  try {
+    db.runSync(`DELETE FROM interactions WHERE id = ?`, [id]);
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting interaction:', error);
+    return { success: false, error };
+  }
+};
+
+// ─── STATS ───────────────────────────────────────────────
+
+export const getLocalStats = () => {
+  if (!db) return { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0 };
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const total = db.getFirstSync(`SELECT COUNT(*) as count FROM leads`);
+    const todayF = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ?`, [today]);
+    const overdue = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date < ? AND status NOT IN ('Closed', 'Not Interested')`, [today]);
+    const interested = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Interested'`);
+    const closed = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Closed'`);
+
+    return {
+      total_leads: total?.count || 0,
+      today_followups: todayF?.count || 0,
+      overdue_followups: overdue?.count || 0,
+      interested_leads: interested?.count || 0,
+      closed_leads: closed?.count || 0,
+    };
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    return { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0 };
+  }
+};
+
 export const getUnsyncedLeads = (): any[] => {
   if (!db) return [];
-  
   try {
-    const result = db.getAllSync(`SELECT * FROM sync_queue WHERE synced = 0`);
-    return result;
-  } catch (error) {
-    console.error('Error getting unsynced leads:', error);
-    return [];
-  }
+    return db.getAllSync(`SELECT * FROM sync_queue WHERE synced = 0`);
+  } catch (error) { return []; }
 };
 
-// Mark lead as synced
 export const markAsSynced = (leadId: string) => {
   if (!db) return;
-  
   try {
     db.runSync(`UPDATE leads SET synced = 1, local_changes = 0 WHERE id = ?`, [leadId]);
     db.runSync(`UPDATE sync_queue SET synced = 1 WHERE lead_id = ?`, [leadId]);
-  } catch (error) {
-    console.error('Error marking as synced:', error);
-  }
+  } catch (error) { console.error('Error marking synced:', error); }
 };
 
-// Clear all local data (for logout)
 export const clearLocalData = () => {
   if (!db) return;
-  
   try {
     db.runSync(`DELETE FROM leads`);
+    db.runSync(`DELETE FROM interactions`);
     db.runSync(`DELETE FROM sync_queue`);
-  } catch (error) {
-    console.error('Error clearing local data:', error);
-  }
+  } catch (error) { console.error('Error clearing data:', error); }
 };
 
-// Get counts for dashboard
-export const getLocalStats = () => {
-  if (!db) {
-    return {
-      total_leads: 0,
-      today_followups: 0,
-      overdue_followups: 0,
-      interested_leads: 0,
-      closed_leads: 0,
-    };
-  }
-  
-  try {
-    const stats = {
-      total_leads: 0,
-      today_followups: 0,
-      overdue_followups: 0,
-      interested_leads: 0,
-      closed_leads: 0,
-    };
-
-    const today = new Date().toISOString().split('T')[0];
-
-    const total = db.getFirstSync(`SELECT COUNT(*) as count FROM leads`);
-    stats.total_leads = total?.count || 0;
-
-    const todayFollowups = db.getFirstSync(
-      `SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ?`,
-      [today]
-    );
-    stats.today_followups = todayFollowups?.count || 0;
-
-    const overdueFollowups = db.getFirstSync(
-      `SELECT COUNT(*) as count FROM leads 
-       WHERE next_followup_date < ? AND status NOT IN ('Closed', 'Not Interested')`,
-      [today]
-    );
-    stats.overdue_followups = overdueFollowups?.count || 0;
-
-    const interested = db.getFirstSync(
-      `SELECT COUNT(*) as count FROM leads WHERE status = 'Interested'`
-    );
-    stats.interested_leads = interested?.count || 0;
-
-    const closed = db.getFirstSync(
-      `SELECT COUNT(*) as count FROM leads WHERE status = 'Closed'`
-    );
-    stats.closed_leads = closed?.count || 0;
-
-    return stats;
-  } catch (error) {
-    console.error('Error getting local stats:', error);
-    return {
-      total_leads: 0,
-      today_followups: 0,
-      overdue_followups: 0,
-      interested_leads: 0,
-      closed_leads: 0,
-    };
-  }
-};
-
-// Check if we're using local database
 export const isUsingLocalDB = () => db !== null;
-
 export default db;
