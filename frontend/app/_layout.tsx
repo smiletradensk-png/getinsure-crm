@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { theme } from './theme';
+import { theme, C } from './theme';
 import { requestNotificationPermissions } from '../utils/notifications';
 import { initializeDatabase, getAllLeadsLocal } from '../utils/database';
 import { AppSettingsProvider, useAppSettings } from '../context/AppSettingsContext';

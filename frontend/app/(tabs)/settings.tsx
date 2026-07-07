@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, StyleSheet, ScrollView, Alert, TouchableOpacity,
-  Modal, TextInput as RNTextInput, KeyboardAvoidingView, Platform,
+  View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal,
+  TextInput as RNTextInput, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
-import { Text, Card, Button, Divider } from 'react-native-paper';
+import { Text, Card, Button, Divider, Searchbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { C } from '../theme';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAllLeadsLocal, initializeDatabase, saveLeadLocal,
@@ -46,10 +49,7 @@ function parseCSVLine(line: string): string[] {
 }
 
 function parseCSV(content: string): string[][] {
-  return content
-    .split(/\r?\n/)
-    .filter(l => l.trim())
-    .map(parseCSVLine);
+  return content.split(/\r?\n/).filter(l => l.trim()).map(parseCSVLine);
 }
 
 function csvField(value: string | undefined | null): string {
@@ -57,7 +57,11 @@ function csvField(value: string | undefined | null): string {
   return `"${v}"`;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || '?';
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 const FONT_SIZE_OPTIONS: { label: string; size: FontSize; samplePx: number }[] = [
   { label: 'Small',  size: 'small',  samplePx: 13 },
@@ -66,41 +70,51 @@ const FONT_SIZE_OPTIONS: { label: string; size: FontSize; samplePx: number }[] =
   { label: 'XL',     size: 'xlarge', samplePx: 25 },
 ];
 
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export default function SettingsScreen() {
-  const [userPhone, setUserPhone] = useState('');
+  const [userName, setUserName]   = useState('');
+  const [userEmail, setUserEmail] = useState('');
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showFbGuide, setShowFbGuide] = useState(false);
   const { fontSize, setFontSize } = useAppSettings();
 
-  // Edit-profile modal
-  const [editProfileVisible, setEditProfileVisible] = useState(false);
-  const [editPhone, setEditPhone] = useState('');
-
   // Facebook live-leads webhook
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [webhookKey, setWebhookKey] = useState('');
-  const [fbSyncing, setFbSyncing] = useState(false);
-  const [lastFbSync, setLastFbSync] = useState('');
+  const [webhookUrl, setWebhookUrl]         = useState('');
+  const [webhookKey, setWebhookKey]         = useState('');
+  const [fbSyncing, setFbSyncing]           = useState(false);
+  const [lastFbSync, setLastFbSync]         = useState('');
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
 
   // Auto backup
-  const [backupFolderSet, setBackupFolderSet] = useState(false);
-  const [lastBackupTime, setLastBackupTime] = useState('');
-  const [backupInProgress, setBackupInProgress] = useState(false);
+  const [backupFolderSet, setBackupFolderSet]   = useState(false);
+  const [lastBackupTime, setLastBackupTime]       = useState('');
+  const [backupInProgress, setBackupInProgress]   = useState(false);
+
+  // Import from Contacts
+  const [contactList, setContactList]             = useState<any[]>([]);
+  const [filteredContacts, setFilteredContacts]   = useState<any[]>([]);
+  const [selectedContacts, setSelectedContacts]   = useState<Set<string>>(new Set());
+  const [contactSearch, setContactSearch]         = useState('');
+  const [showContactsModal, setShowContactsModal] = useState(false);
+  const [importingContacts, setImportingContacts] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     try {
-      const phone = await AsyncStorage.getItem('userPhone');
-      setUserPhone(phone || '');
+      const email = await AsyncStorage.getItem('user_email') ?? '';
+      const name  = await AsyncStorage.getItem('user_name')  ?? '';
+      setUserEmail(email);
+      setUserName(name || email.split('@')[0]);
+
       const { serverUrl, appKey } = await getFbWebhookConfig();
       setWebhookUrl(serverUrl || '');
       setWebhookKey(appKey || '');
       const last = await getLastSyncTime();
       if (last !== '1970-01-01T00:00:00.000Z') setLastFbSync(last);
-      // Auto backup status
+
       const dirUri = await getBackupFolderUri();
       setBackupFolderSet(!!dirUri);
       const lastBk = await getLastBackupTime();
@@ -108,10 +122,83 @@ export default function SettingsScreen() {
     } catch {}
   };
 
+  // ── Contacts ─────────────────────────────────────────────────────────────
+
+  const handleImportContacts = async () => {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Allow contacts access in your phone settings to import contacts.');
+      return;
+    }
+    const { data } = await Contacts.getContactsAsync({
+      fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+      sort: Contacts.SortTypes.FirstName,
+    });
+    const valid = (data as any[]).filter((c: any) => c.name || (c.phoneNumbers && c.phoneNumbers.length > 0));
+    if (valid.length === 0) {
+      Alert.alert('No Contacts', 'No contacts with names or phone numbers were found.');
+      return;
+    }
+    setContactList(valid);
+    setFilteredContacts(valid);
+    setSelectedContacts(new Set());
+    setContactSearch('');
+    setShowContactsModal(true);
+  };
+
+  const searchContacts = (q: string) => {
+    setContactSearch(q);
+    if (!q.trim()) { setFilteredContacts(contactList); return; }
+    const lq = q.toLowerCase();
+    setFilteredContacts(contactList.filter(c =>
+      c.name?.toLowerCase().includes(lq) ||
+      c.phoneNumbers?.some((p: any) => p.number?.includes(q))
+    ));
+  };
+
+  const toggleContact = (id: string) => {
+    const n = new Set(selectedContacts);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setSelectedContacts(n);
+  };
+
+  const importSelectedContacts = async () => {
+    if (selectedContacts.size === 0) return;
+    setImportingContacts(true);
+    let count = 0;
+    await initializeDatabase();
+    for (const id of selectedContacts) {
+      const contact = contactList.find(c => c.id === id);
+      if (!contact) continue;
+      const rawPhone = contact.phoneNumbers?.[0]?.number ?? '';
+      const phone = rawPhone.replace(/[^0-9]/g, '').slice(-10);
+      try {
+        await saveLeadLocal({
+          id:         `contact_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name:       contact.name || 'Unknown',
+          mobile:     phone,
+          product:    'General Insurance',
+          status:     'New',
+          source:     'Walk-in',
+          city:       '',
+          notes:      '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, userEmail);
+        count++;
+      } catch {}
+    }
+    setImportingContacts(false);
+    setShowContactsModal(false);
+    Alert.alert('Import Complete', `${count} contact${count !== 1 ? 's' : ''} imported as leads!`);
+  };
+
+  // ── Backup helpers ────────────────────────────────────────────────────────
+
   const handleSetupBackup = async () => {
     Alert.alert(
       'Choose Backup Folder',
-      'Pick a folder where GETINSURE CRM will save daily backups. We recommend selecting the Downloads folder.',
+      'Pick a folder for daily backups. We recommend Downloads.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -126,9 +213,9 @@ export default function SettingsScreen() {
               if (result.success) {
                 const t = new Date().toISOString();
                 setLastBackupTime(t);
-                Alert.alert('Backup Ready', `${result.leadsCount} leads backed up to your chosen folder. Auto-backup will run daily.`);
+                Alert.alert('Backup Ready', `${result.leadsCount} leads backed up. Auto-backup will run daily.`);
               } else {
-                Alert.alert('Folder Set', 'Backup folder saved. Auto-backup will run on next app open.');
+                Alert.alert('Folder Set', 'Auto-backup will run on next app open.');
               }
             }
           },
@@ -142,20 +229,19 @@ export default function SettingsScreen() {
     const result = await performAutoBackup();
     setBackupInProgress(false);
     if (result.success) {
-      const t = new Date().toISOString();
-      setLastBackupTime(t);
+      setLastBackupTime(new Date().toISOString());
       Alert.alert('Backup Complete', `${result.leadsCount} leads saved to Downloads folder.`);
     } else {
       Alert.alert('Backup Failed', result.error === 'no_folder_set'
         ? 'No backup folder selected. Tap "Setup" first.'
-        : (result.error ?? 'Unknown error. Please try again.'));
+        : (result.error ?? 'Unknown error.'));
     }
   };
 
   const handleRestoreFromBackup = async () => {
     const backup = await checkForBackupFile();
     if (!backup.found || !backup.leads || backup.leads.length === 0) {
-      Alert.alert('No Backup Found', 'No backup file was found in the selected folder.');
+      Alert.alert('No Backup Found', 'No backup file in the selected folder.');
       return;
     }
     const dateStr = backup.backupDate
@@ -163,7 +249,7 @@ export default function SettingsScreen() {
       : 'unknown date';
     Alert.alert(
       'Restore Backup',
-      `Found ${backup.leads.length} leads from ${dateStr}. Restore them now? Existing leads will not be removed — duplicates are automatically skipped.`,
+      `Found ${backup.leads.length} leads from ${dateStr}. Restore? Duplicates are skipped.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -172,7 +258,7 @@ export default function SettingsScreen() {
             setBackupInProgress(true);
             const { restored } = await restoreFromBackup(backup.leads!);
             setBackupInProgress(false);
-            Alert.alert('Done', `${restored} leads restored successfully.`);
+            Alert.alert('Done', `${restored} leads restored.`);
           },
         },
       ],
@@ -182,12 +268,11 @@ export default function SettingsScreen() {
   const handleRemoveBackupFolder = () => {
     Alert.alert(
       'Remove Backup Folder',
-      'This will stop daily auto-backup. Your existing backup file in Downloads will not be deleted.',
+      'This will stop daily auto-backup.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remove',
-          style: 'destructive',
+          text: 'Remove', style: 'destructive',
           onPress: async () => {
             await clearBackupFolder();
             setBackupFolderSet(false);
@@ -202,22 +287,13 @@ export default function SettingsScreen() {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Logout',
-        style: 'destructive',
+        text: 'Logout', style: 'destructive',
         onPress: async () => {
-          await AsyncStorage.multiRemove(['userLoggedIn', 'userPhone']);
-          setUserPhone('');
+          await AsyncStorage.multiRemove(['userLoggedIn', 'user_email', 'user_name', 'current_account_email']);
           router.replace('/login');
         },
       },
     ]);
-  };
-
-  const saveProfile = async () => {
-    const phone = editPhone.trim().replace(/\D/g, '').slice(0, 10);
-    await AsyncStorage.setItem('userPhone', phone);
-    setUserPhone(phone);
-    setEditProfileVisible(false);
   };
 
   const handleFbSyncNow = async () => {
@@ -234,7 +310,7 @@ export default function SettingsScreen() {
       const last = await getLastSyncTime();
       setLastFbSync(last);
       Alert.alert('Sync Complete', result.synced > 0
-        ? `✅ ${result.synced} new lead${result.synced !== 1 ? 's' : ''} imported from Facebook!`
+        ? `✅ ${result.synced} new lead${result.synced !== 1 ? 's' : ''} from Facebook!`
         : 'No new leads since last sync.');
     }
   };
@@ -251,80 +327,44 @@ export default function SettingsScreen() {
     setExporting(true);
     try {
       await initializeDatabase();
-      const leads = getAllLeadsLocal();
-      if (leads.length === 0) {
-        Alert.alert('No Data', 'No leads to export.');
-        return;
-      }
+      const leads = getAllLeadsLocal(userEmail);
+      if (leads.length === 0) { Alert.alert('No Data', 'No leads to export.'); return; }
 
       const headers = 'Name,Mobile,Product,Status,Source,City,Notes,Next Followup Date,Next Followup Time';
       const rows = leads.map((lead: any) =>
-        [
-          lead.name, lead.mobile, lead.product, lead.status,
-          lead.source, lead.city, lead.notes,
-          lead.next_followup_date, lead.next_followup_time,
-        ].map(csvField).join(',')
+        [lead.name, lead.mobile, lead.product, lead.status, lead.source, lead.city,
+         lead.notes, lead.next_followup_date, lead.next_followup_time].map(csvField).join(',')
       );
-
       const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
-      const csvContent = '﻿' + headers + '\n' + rows.join('\n');
       const fileUri = dir + `getinsure_leads_${Date.now()}.csv`;
-
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+      await FileSystem.writeAsStringAsync(fileUri, '﻿' + headers + '\n' + rows.join('\n'), {
         encoding: FileSystem.EncodingType.UTF8,
       });
-
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: `Share ${leads.length} Leads (CSV)`,
-          UTI: 'public.comma-separated-values-text',
-        });
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: `Share ${leads.length} Leads (CSV)` });
       } else {
         Alert.alert('Exported', `File saved to:\n${fileUri}`);
       }
-    } catch (error) {
-      console.error('Export error:', error);
-      Alert.alert('Error', 'Failed to export. Please try again.');
-    } finally {
-      setExporting(false);
-    }
+    } catch { Alert.alert('Error', 'Failed to export. Please try again.'); }
+    finally { setExporting(false); }
   };
-
-  // ── Export JSON ─────────────────────────────────────────────────────────────
 
   const handleExportJSON = async () => {
     setExporting(true);
     try {
       await initializeDatabase();
-      const leads = getAllLeadsLocal();
-      if (leads.length === 0) {
-        Alert.alert('No Data', 'No leads to export.');
-        return;
-      }
-
+      const leads = getAllLeadsLocal(userEmail);
+      if (leads.length === 0) { Alert.alert('No Data', 'No leads to export.'); return; }
       const jsonContent = JSON.stringify({ leads, exported_at: new Date().toISOString() }, null, 2);
       const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
       const fileUri = dir + `getinsure_leads_${Date.now()}.json`;
-
-      await FileSystem.writeAsStringAsync(fileUri, jsonContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
+      await FileSystem.writeAsStringAsync(fileUri, jsonContent, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: `Share ${leads.length} Leads (JSON)`,
-        });
+        await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: `Share ${leads.length} Leads (JSON)` });
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to export JSON.');
-    } finally {
-      setExporting(false);
-    }
+    } catch { Alert.alert('Error', 'Failed to export JSON.'); }
+    finally { setExporting(false); }
   };
-
-  // ── Download Sample CSV ─────────────────────────────────────────────────────
 
   const handleDownloadSampleCSV = async () => {
     try {
@@ -333,25 +373,14 @@ export default function SettingsScreen() {
         '"Rahul Sharma","9876543210","Health Insurance","New","Facebook Ads","Mumbai","Interested in family floater plan"\n' +
         '"Priya Patel","8765432109","Term Insurance","Interested","Referral","Pune","Looking for 1 crore cover"\n' +
         '"Amit Kumar","7654321098","Motor Insurance","Follow-up","Walk-in","Delhi","Car insurance renewal next month"';
-
       const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
       const fileUri = dir + 'sample_import_format.csv';
-      await FileSystem.writeAsStringAsync(fileUri, '﻿' + sampleCSV, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
+      await FileSystem.writeAsStringAsync(fileUri, '﻿' + sampleCSV, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Save Sample CSV File',
-        });
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Save Sample CSV File' });
       }
-    } catch {
-      Alert.alert('Error', 'Failed to create sample file.');
-    }
+    } catch { Alert.alert('Error', 'Failed to create sample file.'); }
   };
-
-  // ── Import CSV ──────────────────────────────────────────────────────────────
 
   const handleImportCSV = async () => {
     try {
@@ -359,140 +388,82 @@ export default function SettingsScreen() {
         type: ['text/csv', 'text/comma-separated-values', 'text/plain', '*/*'],
         copyToCacheDirectory: true,
       });
-
       if (result.canceled) return;
-
       const file = result.assets[0];
-
-      // Reject obvious non-CSV files
       const name = file.name?.toLowerCase() ?? '';
       if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-        Alert.alert(
-          'Wrong Format',
-          'Please open the Excel file, go to File → Save As → CSV format (.csv), then import that file.',
-        );
+        Alert.alert('Wrong Format', 'Please save as CSV first, then import.');
         return;
       }
-
       setImporting(true);
-
-      const content = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      // Strip BOM if present
+      const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
       const cleanContent = content.replace(/^﻿/, '');
       const rows = parseCSV(cleanContent);
+      if (rows.length < 2) { Alert.alert('Error', 'File appears empty or has only headers.'); setImporting(false); return; }
 
-      if (rows.length < 2) {
-        Alert.alert('Error', 'File appears empty or has only headers.');
-        setImporting(false);
-        return;
-      }
-
-      // Detect header row → find column indices
       const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
       const col = (keys: string[]) => {
-        for (const k of keys) {
-          const idx = header.findIndex(h => h.includes(k));
-          if (idx !== -1) return idx;
-        }
+        for (const k of keys) { const idx = header.findIndex(h => h.includes(k)); if (idx !== -1) return idx; }
         return -1;
       };
+      const nameIdx    = col(['name','fullname','customerfullname']) !== -1 ? col(['name','fullname','customerfullname']) : 0;
+      const mobileIdx  = col(['mobile','phone','contact','number'])  !== -1 ? col(['mobile','phone','contact','number'])  : 1;
+      const productIdx = col(['product','insurance','service'])       !== -1 ? col(['product','insurance','service'])       : 2;
+      const statusIdx  = col(['status'])                              !== -1 ? col(['status'])                              : 3;
+      const sourceIdx  = col(['source','leadsource'])                 !== -1 ? col(['source','leadsource'])                 : 4;
+      const cityIdx    = col(['city','location','area'])              !== -1 ? col(['city','location','area'])              : 5;
+      const notesIdx   = col(['notes','note','remark','comment'])     !== -1 ? col(['notes','note','remark','comment'])     : 6;
 
-      // Support both our own export format AND common Facebook/other formats
-      const nameIdx    = col(['name', 'fullname', 'customerfullname']) !== -1
-        ? col(['name', 'fullname', 'customerfullname']) : 0;
-      const mobileIdx  = col(['mobile', 'phone', 'contact', 'number'])  !== -1
-        ? col(['mobile', 'phone', 'contact', 'number'])  : 1;
-      const productIdx = col(['product', 'insurance', 'service'])        !== -1
-        ? col(['product', 'insurance', 'service'])        : 2;
-      const statusIdx  = col(['status'])                                  !== -1
-        ? col(['status'])                                  : 3;
-      const sourceIdx  = col(['source', 'leadsource'])                   !== -1
-        ? col(['source', 'leadsource'])                   : 4;
-      const cityIdx    = col(['city', 'location', 'area'])               !== -1
-        ? col(['city', 'location', 'area'])                : 5;
-      const notesIdx   = col(['notes', 'note', 'remark', 'comment'])     !== -1
-        ? col(['notes', 'note', 'remark', 'comment'])      : 6;
-
-      let imported = 0;
-      let skipped = 0;
-
+      let imported = 0, skipped = 0;
       for (let i = 1; i < rows.length; i++) {
-        const cols = rows[i];
-        const name   = nameIdx   >= 0 ? (cols[nameIdx]   || '') : '';
-        const mobile = mobileIdx >= 0 ? (cols[mobileIdx] || '') : '';
-
-        if (!name && !mobile) { skipped++; continue; }
-
+        const cols  = rows[i];
+        const n     = nameIdx   >= 0 ? (cols[nameIdx]   || '') : '';
+        const mob   = mobileIdx >= 0 ? (cols[mobileIdx] || '') : '';
+        if (!n && !mob) { skipped++; continue; }
         try {
           await saveLeadLocal({
-            id: `import_${Date.now()}_${i}`,
-            name:   name   || 'Unknown',
-            mobile: mobile || '',
+            id:      `import_${Date.now()}_${i}`,
+            name:    n || 'Unknown',
+            mobile:  mob || '',
             product: productIdx >= 0 ? (cols[productIdx] || 'General Insurance') : 'General Insurance',
             status:  statusIdx  >= 0 ? (cols[statusIdx]  || 'New')              : 'New',
             source:  sourceIdx  >= 0 ? (cols[sourceIdx]  || 'Import')           : 'Import',
             city:    cityIdx    >= 0 ? (cols[cityIdx]    || '')                 : '',
             notes:   notesIdx   >= 0 ? (cols[notesIdx]   || '')                 : '',
-            created_at:  new Date().toISOString(),
-            updated_at:  new Date().toISOString(),
-          });
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, userEmail);
           imported++;
-        } catch {
-          skipped++;
-        }
+        } catch { skipped++; }
       }
-
-      Alert.alert(
-        'Import Complete',
-        `✅ Imported: ${imported} lead${imported !== 1 ? 's' : ''}\n⏭ Skipped: ${skipped} row${skipped !== 1 ? 's' : ''}`,
-      );
-    } catch (error) {
-      console.error('Import error:', error);
-      Alert.alert('Error', 'Failed to read the file. Make sure it is a valid CSV.');
-    } finally {
-      setImporting(false);
-    }
+      Alert.alert('Import Complete', `✅ Imported: ${imported} leads\n⏭ Skipped: ${skipped} rows`);
+    } catch { Alert.alert('Error', 'Failed to read the file. Make sure it is a valid CSV.'); }
+    finally { setImporting(false); }
   };
-
-  // ── Backup ──────────────────────────────────────────────────────────────────
 
   const handleBackup = async () => {
     try {
       await initializeDatabase();
-      const leads = getAllLeadsLocal();
+      const leads = getAllLeadsLocal(userEmail);
       const backup = JSON.stringify({ leads, backup_date: new Date().toISOString() }, null, 2);
       const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '';
       const fileUri = dir + `getinsure_backup_${Date.now()}.json`;
-
-      await FileSystem.writeAsStringAsync(fileUri, backup, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
+      await FileSystem.writeAsStringAsync(fileUri, backup, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: 'Save Backup to Drive / WhatsApp',
-        });
+        await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'Save Backup to Drive / WhatsApp' });
       }
-      Alert.alert('Backup Ready', `${leads.length} leads included. Share to Google Drive or WhatsApp.`);
-    } catch {
-      Alert.alert('Error', 'Failed to create backup.');
-    }
+      Alert.alert('Backup Ready', `${leads.length} leads included.`);
+    } catch { Alert.alert('Error', 'Failed to create backup.'); }
   };
-
-  // (Danger Zone removed)
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.headerTitle}>Settings</Text>
-        <Text variant="bodyMedium" style={styles.headerSubtitle}>Preferences & Data Management</Text>
-      </View>
+      <LinearGradient colors={[C.navyDark, C.navy]} style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerSubtitle}>Preferences & Data Management</Text>
+      </LinearGradient>
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
@@ -500,104 +471,66 @@ export default function SettingsScreen() {
           {/* ── Account ── */}
           <Card style={styles.card}>
             <Card.Content>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="account-circle" size={32} color="#009688" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Account</Text>
+              {/* Brand badge */}
+              <View style={styles.brandRow}>
+                <View style={styles.brandIcon}>
+                  <MaterialCommunityIcons name="shield-check" size={20} color={C.gold} />
+                </View>
+                <Text style={styles.brandName}>GET INSURE</Text>
               </View>
 
-              <TouchableOpacity
-                style={styles.profileRow}
-                onPress={() => { setEditPhone(userPhone); setEditProfileVisible(true); }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.profileInfo}>
-                  {userPhone ? (
-                    <>
-                      <Text variant="bodyLarge" style={styles.phoneNumber}>+91 {userPhone}</Text>
-                      <Text variant="bodySmall" style={{ color: '#757575' }}>
-                        All data stored locally on this device
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text variant="bodyMedium" style={{ color: '#9E9E9E' }}>
-                        Tap to set your phone number
-                      </Text>
-                      <Text variant="bodySmall" style={{ color: '#BDBDBD' }}>
-                        Not required — data is always saved locally
-                      </Text>
-                    </>
-                  )}
+              {/* User info */}
+              <View style={styles.userInfoBlock}>
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>
+                    {getInitials(userName || userEmail.split('@')[0] || 'U')}
+                  </Text>
                 </View>
-                <MaterialCommunityIcons name="pencil-outline" size={20} color="#009688" />
-              </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.userDisplayName}>{userName || 'Agent'}</Text>
+                  <Text style={styles.userDisplayEmail}>{userEmail || 'Not set'}</Text>
+                </View>
+              </View>
 
-              {userPhone ? (
-                <Button
-                  mode="text"
-                  onPress={handleLogout}
-                  icon="logout"
-                  textColor="#F44336"
-                  style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                  compact
-                >
-                  Logout
-                </Button>
-              ) : null}
+              <Text style={styles.accountNote}>All data is stored locally on this device</Text>
+
+              <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+                <MaterialCommunityIcons name="logout" size={18} color={C.danger} />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
             </Card.Content>
           </Card>
 
-          {/* ── Edit Profile Modal ── */}
-          <Modal
-            visible={editProfileVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setEditProfileVisible(false)}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.modalOverlay}
-            >
-              <View style={styles.editModal}>
-                <Text style={styles.editModalTitle}>Set Your Phone Number</Text>
-                <Text style={styles.editModalSubtitle}>Used to display your profile in Settings</Text>
-                <RNTextInput
-                  style={styles.editModalInput}
-                  placeholder="10-digit mobile number"
-                  placeholderTextColor="#9E9E9E"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  autoFocus
-                />
-                <View style={styles.editModalButtons}>
-                  <Button mode="text" onPress={() => setEditProfileVisible(false)} textColor="#757575">
-                    Cancel
-                  </Button>
-                  <Button
-                    mode="contained"
-                    onPress={saveProfile}
-                    buttonColor="#009688"
-                    disabled={editPhone.replace(/\D/g, '').length < 10}
-                  >
-                    Save
-                  </Button>
-                </View>
+          {/* ── Import from Contacts ── */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="contacts" size={32} color="#00897B" />
+                <Text style={styles.cardTitle}>Import from Contacts</Text>
               </View>
-            </KeyboardAvoidingView>
-          </Modal>
+              <Text style={styles.cardDescription}>
+                Select contacts from your phone and import them as leads with name and mobile pre-filled.
+              </Text>
+              <Button
+                mode="contained"
+                onPress={handleImportContacts}
+                icon="contacts"
+                buttonColor="#00897B"
+                style={styles.button}
+              >
+                Choose Contacts to Import
+              </Button>
+            </Card.Content>
+          </Card>
 
           {/* ── Display / Font Size ── */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="format-size" size={32} color="#7B1FA2" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Display</Text>
+                <Text style={styles.cardTitle}>Display</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
-                Adjust text size across the entire app
-              </Text>
+              <Text style={styles.cardDescription}>Adjust text size across the entire app</Text>
               <View style={styles.fontSizeRow}>
                 {FONT_SIZE_OPTIONS.map(({ label, size, samplePx }) => (
                   <TouchableOpacity
@@ -607,9 +540,7 @@ export default function SettingsScreen() {
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.fontSizeSample, { fontSize: samplePx }]}>A</Text>
-                    <Text style={[styles.fontSizeLabel, fontSize === size && styles.fontSizeLabelActive]}>
-                      {label}
-                    </Text>
+                    <Text style={[styles.fontSizeLabel, fontSize === size && styles.fontSizeLabelActive]}>{label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -621,81 +552,46 @@ export default function SettingsScreen() {
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="microsoft-excel" size={32} color="#217346" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Import / Export</Text>
+                <Text style={styles.cardTitle}>Import / Export</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
-                Import leads from CSV or share your data via WhatsApp / Google Drive
+              <Text style={styles.cardDescription}>
+                Import leads from CSV or share your data
               </Text>
-
-              <Button
-                mode="outlined"
-                onPress={handleDownloadSampleCSV}
-                icon="file-download"
-                textColor="#009688"
-                style={styles.button}
-              >
+              <Button mode="outlined" onPress={handleDownloadSampleCSV} icon="file-download" textColor="#009688" style={styles.button}>
                 Download Sample CSV Format
               </Button>
-
-              <Button
-                mode="contained"
-                onPress={handleImportCSV}
-                icon="file-import"
-                loading={importing}
-                disabled={importing || exporting}
-                buttonColor="#217346"
-                style={styles.button}
-              >
+              <Button mode="contained" onPress={handleImportCSV} icon="file-import" loading={importing}
+                disabled={importing || exporting} buttonColor="#217346" style={styles.button}>
                 {importing ? 'Importing…' : 'Import from CSV'}
               </Button>
-
               <View style={styles.exportButtons}>
-                <Button
-                  mode="contained"
-                  onPress={handleExportCSV}
-                  icon="file-delimited"
-                  loading={exporting}
-                  disabled={exporting || importing}
-                  buttonColor="#009688"
-                  style={styles.halfButton}
-                >
+                <Button mode="contained" onPress={handleExportCSV} icon="file-delimited" loading={exporting}
+                  disabled={exporting || importing} buttonColor="#009688" style={styles.halfButton}>
                   Export CSV
                 </Button>
-                <Button
-                  mode="contained"
-                  onPress={handleExportJSON}
-                  icon="code-json"
-                  loading={exporting}
-                  disabled={exporting || importing}
-                  buttonColor="#00796B"
-                  style={styles.halfButton}
-                >
+                <Button mode="contained" onPress={handleExportJSON} icon="code-json" loading={exporting}
+                  disabled={exporting || importing} buttonColor="#00796B" style={styles.halfButton}>
                   Export JSON
                 </Button>
               </View>
-
-              <Text variant="bodySmall" style={styles.noteText}>
-                CSV format: Name, Mobile, Product, Status, Source, City, Notes
-              </Text>
+              <Text style={styles.noteText}>CSV format: Name, Mobile, Product, Status, Source, City, Notes</Text>
             </Card.Content>
           </Card>
 
-          {/* ── Auto Backup (Downloads folder) ── */}
+          {/* ── Auto Backup ── */}
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="folder-download" size={32} color="#4CAF50" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Auto Backup</Text>
+                <Text style={styles.cardTitle}>Auto Backup</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
-                Automatically saves leads to your Downloads folder daily. Restores data after reinstall.
+              <Text style={styles.cardDescription}>
+                Saves leads to your Downloads folder daily.
               </Text>
-
               <View style={styles.syncStatusRow}>
                 <MaterialCommunityIcons
                   name={backupFolderSet ? 'check-circle' : 'circle-outline'}
-                  size={18}
-                  color={backupFolderSet ? '#4CAF50' : '#BDBDBD'}
+                  size={18} color={backupFolderSet ? '#4CAF50' : '#BDBDBD'}
                 />
                 <Text style={[styles.syncStatusText, { color: backupFolderSet ? '#4CAF50' : '#9E9E9E' }]}>
                   {backupFolderSet
@@ -705,60 +601,30 @@ export default function SettingsScreen() {
                     : 'Not configured — tap Setup to enable'}
                 </Text>
               </View>
-
               {!backupFolderSet ? (
-                <Button
-                  mode="contained"
-                  onPress={handleSetupBackup}
-                  icon="folder-open"
-                  buttonColor="#4CAF50"
-                  loading={backupInProgress}
-                  disabled={backupInProgress}
-                  style={styles.button}
-                >
+                <Button mode="contained" onPress={handleSetupBackup} icon="folder-open"
+                  buttonColor="#4CAF50" loading={backupInProgress} disabled={backupInProgress} style={styles.button}>
                   Setup Auto Backup
                 </Button>
               ) : (
                 <>
                   <View style={styles.exportButtons}>
-                    <Button
-                      mode="contained"
-                      onPress={handleBackupNow}
-                      icon="content-save"
-                      buttonColor="#4CAF50"
-                      loading={backupInProgress}
-                      disabled={backupInProgress}
-                      style={styles.halfButton}
-                    >
+                    <Button mode="contained" onPress={handleBackupNow} icon="content-save"
+                      buttonColor="#4CAF50" loading={backupInProgress} disabled={backupInProgress} style={styles.halfButton}>
                       Backup Now
                     </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={handleRestoreFromBackup}
-                      icon="restore"
-                      textColor="#4CAF50"
-                      disabled={backupInProgress}
-                      style={styles.halfButton}
-                    >
+                    <Button mode="outlined" onPress={handleRestoreFromBackup} icon="restore"
+                      textColor="#4CAF50" disabled={backupInProgress} style={styles.halfButton}>
                       Restore
                     </Button>
                   </View>
-                  <Button
-                    mode="text"
-                    onPress={handleRemoveBackupFolder}
-                    icon="folder-remove"
-                    textColor="#9E9E9E"
-                    style={{ marginTop: 4 }}
-                    compact
-                  >
+                  <Button mode="text" onPress={handleRemoveBackupFolder} icon="folder-remove"
+                    textColor="#9E9E9E" style={{ marginTop: 4 }} compact>
                     Change / Remove Folder
                   </Button>
                 </>
               )}
-
-              <Text variant="bodySmall" style={styles.noteText}>
-                Backup file: getinsure_backup.json in your chosen folder
-              </Text>
+              <Text style={styles.noteText}>Backup file: getinsure_backup.json in your chosen folder</Text>
             </Card.Content>
           </Card>
 
@@ -767,18 +633,12 @@ export default function SettingsScreen() {
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="backup-restore" size={32} color="#2196F3" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Share Backup</Text>
+                <Text style={styles.cardTitle}>Share Backup</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
+              <Text style={styles.cardDescription}>
                 Manually share a backup file to WhatsApp, Google Drive, or email
               </Text>
-              <Button
-                mode="contained"
-                onPress={handleBackup}
-                icon="cloud-upload"
-                buttonColor="#2196F3"
-                style={styles.button}
-              >
+              <Button mode="contained" onPress={handleBackup} icon="cloud-upload" buttonColor="#2196F3" style={styles.button}>
                 Share Backup Now
               </Button>
             </Card.Content>
@@ -789,12 +649,11 @@ export default function SettingsScreen() {
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="facebook" size={32} color="#1877F2" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Facebook Lead Ads</Text>
+                <Text style={styles.cardTitle}>Facebook Lead Ads</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
+              <Text style={styles.cardDescription}>
                 Export leads from Facebook Ads Manager and import them here as CSV.
               </Text>
-
               <TouchableOpacity
                 style={styles.guideToggle}
                 onPress={() => setShowFbGuide(v => !v)}
@@ -803,90 +662,29 @@ export default function SettingsScreen() {
                 <Text style={styles.guideToggleText}>
                   {showFbGuide ? 'Hide step-by-step guide' : 'Show step-by-step guide'}
                 </Text>
-                <MaterialCommunityIcons
-                  name={showFbGuide ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color="#1877F2"
-                />
+                <MaterialCommunityIcons name={showFbGuide ? 'chevron-up' : 'chevron-down'} size={20} color="#1877F2" />
               </TouchableOpacity>
-
               {showFbGuide && (
                 <View style={styles.guideBox}>
-
-                  <Text style={styles.guideSection}>📥 Method 1 — Download CSV from Ads Manager</Text>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>1</Text>
-                    <Text style={styles.guideText}>
-                      Open <Text style={styles.guideBold}>ads.facebook.com</Text> or the
-                      {' '}<Text style={styles.guideBold}>Meta Business Suite</Text> app on your phone.
-                    </Text>
-                  </View>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>2</Text>
-                    <Text style={styles.guideText}>
-                      Go to your <Text style={styles.guideBold}>Lead Ads campaign</Text> → click the
-                      ad set or ad that collects leads.
-                    </Text>
-                  </View>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>3</Text>
-                    <Text style={styles.guideText}>
-                      Click <Text style={styles.guideBold}>Download Leads</Text> (or go to your
-                      Facebook Page → Publishing Tools → Forms Library → Download).
-                    </Text>
-                  </View>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>4</Text>
-                    <Text style={styles.guideText}>
-                      Select a <Text style={styles.guideBold}>date range</Text> and click
-                      {' '}<Text style={styles.guideBold}>Download as CSV</Text>.
-                    </Text>
-                  </View>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>5</Text>
-                    <Text style={styles.guideText}>
-                      Open the CSV in Excel or Google Sheets. Rename the columns to match our format:
-                      {'\n'}
-                      <Text style={styles.guideMono}>
-                        Name | Mobile | Product | Status | Source | City | Notes
-                      </Text>
-                      {'\n'}
-                      Then save/export as CSV again.
-                    </Text>
-                  </View>
-
-                  <View style={styles.guideStep}>
-                    <Text style={styles.guideNum}>6</Text>
-                    <Text style={styles.guideText}>
-                      Come back here → tap <Text style={styles.guideBold}>Import from CSV</Text> →
-                      select your file. Done!
-                    </Text>
-                  </View>
-
+                  <Text style={styles.guideSection}>📥 Download CSV from Ads Manager</Text>
+                  {[
+                    'Open ads.facebook.com or Meta Business Suite app.',
+                    'Go to your Lead Ads campaign → click the ad set.',
+                    'Click Download Leads or go to your Facebook Page → Publishing Tools → Forms Library → Download.',
+                    'Select a date range and click Download as CSV.',
+                    'Rename columns to match our format: Name | Mobile | Product | Status | Source | City | Notes',
+                    'Come back here → tap Import from CSV → select your file. Done!',
+                  ].map((step, i) => (
+                    <View key={i} style={styles.guideStep}>
+                      <Text style={styles.guideNum}>{i + 1}</Text>
+                      <Text style={styles.guideText}>{step}</Text>
+                    </View>
+                  ))}
                   <Divider style={styles.guideDivider} />
-
-                  <Text style={styles.guideSection}>⚡ Method 2 — Zapier / Make.com (Automatic)</Text>
-
-                  <Text style={styles.guideText}>
-                    Connect Facebook Lead Ads to a Google Sheet automatically using
-                    {' '}<Text style={styles.guideBold}>Zapier</Text> or
-                    {' '}<Text style={styles.guideBold}>Make.com</Text> (free plans available).
-                    New leads go straight into a spreadsheet — download as CSV and import here anytime.
-                  </Text>
-
-                  <Divider style={styles.guideDivider} />
-
                   <Text style={styles.guideSection}>💡 Tips</Text>
-                  <Text style={styles.guideTip}>• Set Source column to "Facebook Ads" so you can filter them later</Text>
+                  <Text style={styles.guideTip}>• Set Source column to "Facebook Ads" to filter later</Text>
                   <Text style={styles.guideTip}>• Status defaults to "New" if left blank</Text>
-                  <Text style={styles.guideTip}>• Download the Sample CSV above to see the exact column format</Text>
-                  <Text style={styles.guideTip}>• Import works with Facebook, IndiaMart, WhatsApp exports too</Text>
-
+                  <Text style={styles.guideTip}>• Download Sample CSV above to see the exact column format</Text>
                 </View>
               )}
             </Card.Content>
@@ -897,81 +695,40 @@ export default function SettingsScreen() {
             <Card.Content>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="lightning-bolt" size={32} color="#1877F2" />
-                <Text variant="titleLarge" style={styles.cardTitle}>Facebook Live Leads</Text>
+                <Text style={styles.cardTitle}>Facebook Live Leads</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.cardDescription}>
-                Automatically receive leads the moment someone fills your Facebook Lead Ad — no manual download needed.
+              <Text style={styles.cardDescription}>
+                Automatically receive leads the moment someone fills your Facebook Lead Ad.
               </Text>
-
-              {/* Sync status */}
               <View style={styles.syncStatusRow}>
-                <MaterialCommunityIcons
-                  name={webhookUrl ? 'check-circle' : 'circle-outline'}
-                  size={18}
-                  color={webhookUrl ? '#4CAF50' : '#BDBDBD'}
-                />
+                <MaterialCommunityIcons name={webhookUrl ? 'check-circle' : 'circle-outline'}
+                  size={18} color={webhookUrl ? '#4CAF50' : '#BDBDBD'} />
                 <Text style={[styles.syncStatusText, { color: webhookUrl ? '#4CAF50' : '#9E9E9E' }]}>
                   {webhookUrl
-                    ? (lastFbSync
-                        ? `Last synced: ${new Date(lastFbSync).toLocaleString('en-IN')}`
-                        : 'Configured — not synced yet')
+                    ? (lastFbSync ? `Last synced: ${new Date(lastFbSync).toLocaleString('en-IN')}` : 'Configured — not synced yet')
                     : 'Not configured yet'}
                 </Text>
               </View>
-
               <View style={styles.exportButtons}>
-                <Button
-                  mode="contained"
-                  onPress={handleFbSyncNow}
-                  icon="sync"
-                  loading={fbSyncing}
-                  disabled={fbSyncing || !webhookUrl}
-                  buttonColor="#1877F2"
-                  style={styles.halfButton}
-                >
+                <Button mode="contained" onPress={handleFbSyncNow} icon="sync" loading={fbSyncing}
+                  disabled={fbSyncing || !webhookUrl} buttonColor="#1877F2" style={styles.halfButton}>
                   {fbSyncing ? 'Syncing…' : 'Sync Now'}
                 </Button>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowWebhookConfig(v => !v)}
-                  icon="cog-outline"
-                  textColor="#1877F2"
-                  style={styles.halfButton}
-                >
+                <Button mode="outlined" onPress={() => setShowWebhookConfig(v => !v)} icon="cog-outline"
+                  textColor="#1877F2" style={styles.halfButton}>
                   Configure
                 </Button>
               </View>
-
               {showWebhookConfig && (
                 <View style={styles.webhookConfig}>
                   <Text style={styles.webhookConfigTitle}>Webhook Server Settings</Text>
-                  <Text style={styles.webhookConfigHint}>
-                    Enter the Render.com URL of your webhook server and the App Key.
-                  </Text>
-                  <RNTextInput
-                    style={styles.webhookInput}
-                    placeholder="https://your-app.onrender.com"
-                    placeholderTextColor="#9E9E9E"
-                    value={webhookUrl}
-                    onChangeText={setWebhookUrl}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                  />
-                  <RNTextInput
-                    style={styles.webhookInput}
-                    placeholder="App Key (e.g. getinsure-crm-key)"
-                    placeholderTextColor="#9E9E9E"
-                    value={webhookKey}
-                    onChangeText={setWebhookKey}
-                    autoCapitalize="none"
-                  />
-                  <Button
-                    mode="contained"
-                    onPress={saveWebhookConfig}
-                    buttonColor="#1877F2"
-                    style={{ marginTop: 8 }}
-                    icon="content-save"
-                  >
+                  <Text style={styles.webhookConfigHint}>Enter the Render.com URL and App Key.</Text>
+                  <RNTextInput style={styles.webhookInput} placeholder="https://your-app.onrender.com"
+                    placeholderTextColor="#9E9E9E" value={webhookUrl} onChangeText={setWebhookUrl}
+                    autoCapitalize="none" keyboardType="url" />
+                  <RNTextInput style={styles.webhookInput} placeholder="App Key (e.g. getinsure-crm-key)"
+                    placeholderTextColor="#9E9E9E" value={webhookKey} onChangeText={setWebhookKey} autoCapitalize="none" />
+                  <Button mode="contained" onPress={saveWebhookConfig} buttonColor="#1877F2" style={{ marginTop: 8 }} icon="content-save">
                     Save Config
                   </Button>
                 </View>
@@ -979,12 +736,106 @@ export default function SettingsScreen() {
             </Card.Content>
           </Card>
 
-          <Text variant="bodySmall" style={styles.versionText}>
-            GETINSURE CRM v1.0.0 • All data stored locally on device
-          </Text>
+          {/* ── Legal ── */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="shield-check-outline" size={32} color={C.navy} />
+                <Text style={styles.cardTitle}>Legal</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.legalRow}
+                onPress={() => router.push('/privacy-policy' as any)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="file-document-outline" size={20} color={C.navy} />
+                <Text style={styles.legalRowText}>Privacy Policy</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={C.textLight} />
+              </TouchableOpacity>
+            </Card.Content>
+          </Card>
 
+          <Text style={styles.versionText}>GETINSURE CRM v1.1.0 • All data stored locally on device</Text>
         </View>
       </ScrollView>
+
+      {/* ── Contacts Picker Modal ── */}
+      <Modal visible={showContactsModal} animationType="slide" onRequestClose={() => setShowContactsModal(false)}>
+        <SafeAreaView style={styles.contactsModal} edges={['top']}>
+          <LinearGradient colors={[C.navyDark, C.navy]} style={styles.contactsHeader}>
+            <TouchableOpacity onPress={() => setShowContactsModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={C.white} />
+            </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.contactsHeaderTitle}>Import from Contacts</Text>
+              <Text style={styles.contactsHeaderSub}>{selectedContacts.size} selected · {filteredContacts.length} shown</Text>
+            </View>
+            <TouchableOpacity
+              onPress={importSelectedContacts}
+              disabled={selectedContacts.size === 0 || importingContacts}
+              style={[styles.importBtn, selectedContacts.size === 0 && { opacity: 0.4 }]}
+            >
+              <Text style={styles.importBtnText}>Import {selectedContacts.size > 0 ? selectedContacts.size : ''}</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+
+          <View style={styles.contactsSearchWrap}>
+            <Searchbar
+              placeholder="Search contacts…"
+              value={contactSearch}
+              onChangeText={searchContacts}
+              style={styles.contactsSearchBar}
+              inputStyle={{ fontSize: 14 }}
+              iconColor={C.navy}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                if (selectedContacts.size === filteredContacts.length) {
+                  setSelectedContacts(new Set());
+                } else {
+                  setSelectedContacts(new Set(filteredContacts.map(c => c.id!).filter(Boolean)));
+                }
+              }}
+              style={styles.selectAllBtn}
+            >
+              <Text style={styles.selectAllText}>
+                {selectedContacts.size === filteredContacts.length && filteredContacts.length > 0 ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={filteredContacts}
+            keyExtractor={item => item.id ?? item.name ?? ''}
+            renderItem={({ item }) => {
+              const phone = item.phoneNumbers?.[0]?.number ?? '';
+              const isSelected = !!item.id && selectedContacts.has(item.id);
+              return (
+                <TouchableOpacity
+                  style={[styles.contactItem, isSelected && styles.contactItemSelected]}
+                  onPress={() => item.id && toggleContact(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.contactAvatar, isSelected && styles.contactAvatarSelected]}>
+                    <Text style={[styles.contactAvatarText, isSelected && { color: C.white }]}>
+                      {getInitials(item.name || '?')}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactName} numberOfLines={1}>{item.name || 'Unknown'}</Text>
+                    <Text style={styles.contactPhone}>{phone}</Text>
+                  </View>
+                  {isSelected
+                    ? <MaterialCommunityIcons name="check-circle" size={22} color={C.navy} />
+                    : <View style={styles.contactUncheck} />
+                  }
+                </TouchableOpacity>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: C.border }} />}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -992,84 +843,99 @@ export default function SettingsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: '#F5F5F5' },
-  header:         { backgroundColor: '#009688', padding: 16, paddingBottom: 20 },
-  headerTitle:    { color: '#FFFFFF', fontWeight: 'bold' },
-  headerSubtitle: { color: '#E0F2F1', marginTop: 4 },
+  container:      { flex: 1, backgroundColor: C.bg },
+  header:         { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
+  headerTitle:    { fontSize: 24, fontWeight: '800', color: C.white },
+  headerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
   scrollView:     { flex: 1 },
   content:        { padding: 16 },
-  card:           { marginBottom: 16, elevation: 2, backgroundColor: '#FFFFFF' },
+  card:           { marginBottom: 14, elevation: 3, backgroundColor: C.white, borderRadius: 16, shadowColor: C.navy, shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width:0, height:2 } },
   cardHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
-  cardTitle:      { fontWeight: 'bold', color: '#000000' },
-  phoneNumber:    { color: '#009688', fontWeight: 'bold', marginBottom: 2 },
-  cardDescription:{ color: '#757575', marginBottom: 12 },
+  cardTitle:      { fontWeight: '700', color: C.navy, fontSize: 17 },
+  cardDescription:{ color: C.textMid, marginBottom: 12, fontSize: 13 },
   button:         { marginTop: 8, paddingVertical: 2 },
   exportButtons:  { flexDirection: 'row', gap: 8, marginTop: 8 },
   halfButton:     { flex: 1 },
-  noteText:       { color: '#9E9E9E', marginTop: 8, fontStyle: 'italic', fontSize: 12 },
-  versionText:    { color: '#BDBDBD', textAlign: 'center', marginVertical: 16, fontSize: 12 },
+  noteText:       { color: C.textLight, marginTop: 8, fontStyle: 'italic', fontSize: 12 },
+  versionText:    { color: C.textLight, textAlign: 'center', marginVertical: 16, fontSize: 12 },
 
-  // Account / profile
-  profileRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: '#F5F5F5', borderRadius: 10, marginBottom: 4,
+  // Account card
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  brandIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: C.navy,
+    justifyContent: 'center', alignItems: 'center',
   },
-  profileInfo: { flex: 1, marginRight: 8 },
+  brandName: { fontSize: 15, fontWeight: '800', color: C.navy, letterSpacing: 1 },
 
-  // Edit-profile modal
-  modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  editModal:        { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, width: '100%' },
-  editModalTitle:   { fontSize: 18, fontWeight: 'bold', color: '#000', marginBottom: 4 },
-  editModalSubtitle:{ fontSize: 13, color: '#757575', marginBottom: 16 },
-  editModalInput:   {
-    borderWidth: 1.5, borderColor: '#009688', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10, fontSize: 16,
-    color: '#000', marginBottom: 16,
+  userInfoBlock: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 10 },
+  userAvatar: {
+    width: 54, height: 54, borderRadius: 16,
+    backgroundColor: C.navy,
+    justifyContent: 'center', alignItems: 'center',
   },
-  editModalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  userAvatarText:    { fontSize: 20, fontWeight: '800', color: C.gold },
+  userDisplayName:   { fontSize: 18, fontWeight: '800', color: C.navy },
+  userDisplayEmail:  { fontSize: 13, color: C.textMid, marginTop: 2 },
+  accountNote:       { fontSize: 11, color: C.textLight, marginBottom: 14 },
+
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 10, backgroundColor: '#FEF2F2',
+    borderWidth: 1, borderColor: '#FECACA',
+    alignSelf: 'flex-start',
+  },
+  logoutText: { fontSize: 14, fontWeight: '700', color: C.danger },
+
+  // Legal
+  legalRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: C.bg, borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  legalRowText: { flex: 1, fontSize: 15, fontWeight: '600', color: C.navy },
 
   // Font size picker
-  fontSizeRow:        { flexDirection: 'row', marginTop: 8, gap: 8 },
-  fontSizeBtn:        {
-    flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#E0E0E0', backgroundColor: '#FAFAFA',
-  },
-  fontSizeBtnActive:  { borderColor: '#7B1FA2', backgroundColor: '#F3E5F5' },
-  fontSizeSample:     { color: '#424242', fontWeight: 'bold', lineHeight: 32 },
-  fontSizeLabel:      { fontSize: 10, color: '#9E9E9E', marginTop: 2 },
-  fontSizeLabelActive:{ color: '#7B1FA2', fontWeight: 'bold' },
+  fontSizeRow:         { flexDirection: 'row', marginTop: 8, gap: 8 },
+  fontSizeBtn:         { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.bg },
+  fontSizeBtnActive:   { borderColor: C.navy, backgroundColor: '#EEF2FF' },
+  fontSizeSample:      { color: C.textPrimary, fontWeight: 'bold', lineHeight: 32 },
+  fontSizeLabel:       { fontSize: 10, color: C.textLight, marginTop: 2 },
+  fontSizeLabelActive: { color: C.navy, fontWeight: 'bold' },
 
   // Facebook guide
-  guideToggle:     {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: '#E3F2FD', borderRadius: 8, marginTop: 4,
-  },
-  guideToggleText: { color: '#1877F2', fontWeight: '600', fontSize: 14 },
-  guideBox:        { marginTop: 12, backgroundColor: '#F8F9FF', borderRadius: 8, padding: 12 },
-  guideSection:    { fontSize: 13, fontWeight: 'bold', color: '#1877F2', marginTop: 8, marginBottom: 8 },
-  guideStep:       { flexDirection: 'row', marginBottom: 10, gap: 8, alignItems: 'flex-start' },
-  guideNum:        {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: '#1877F2',
-    color: '#FFFFFF', fontSize: 12, fontWeight: 'bold',
-    textAlign: 'center', lineHeight: 22,
-  },
-  guideText:       { flex: 1, fontSize: 13, color: '#424242', lineHeight: 20 },
-  guideBold:       { fontWeight: 'bold', color: '#1565C0' },
-  guideMono:       { fontFamily: 'monospace', fontSize: 12, color: '#4A148C', backgroundColor: '#F3E5F5' },
-  guideDivider:    { marginVertical: 10 },
-  guideTip:        { fontSize: 12, color: '#546E7A', marginBottom: 4, paddingLeft: 8 },
+  guideToggle:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#E3F2FD', borderRadius: 10, marginTop: 4 },
+  guideToggleText:  { color: '#1877F2', fontWeight: '600', fontSize: 14 },
+  guideBox:         { marginTop: 12, backgroundColor: C.bg, borderRadius: 10, padding: 14 },
+  guideSection:     { fontSize: 13, fontWeight: 'bold', color: '#1877F2', marginTop: 8, marginBottom: 8 },
+  guideStep:        { flexDirection: 'row', marginBottom: 10, gap: 8, alignItems: 'flex-start' },
+  guideNum:         { width: 22, height: 22, borderRadius: 11, backgroundColor: '#1877F2', color: C.white, fontSize: 12, fontWeight: 'bold', textAlign: 'center', lineHeight: 22 },
+  guideText:        { flex: 1, fontSize: 13, color: C.textMid, lineHeight: 20 },
+  guideDivider:     { marginVertical: 10 },
+  guideTip:         { fontSize: 12, color: C.textMid, marginBottom: 4, paddingLeft: 8 },
 
-  // Facebook live leads sync
-  syncStatusRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  syncStatusText:   { fontSize: 13 },
-  webhookConfig:    { marginTop: 12, backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12 },
-  webhookConfigTitle:{ fontSize: 14, fontWeight: 'bold', color: '#000', marginBottom: 4 },
-  webhookConfigHint: { fontSize: 12, color: '#757575', marginBottom: 10 },
-  webhookInput:     {
-    borderWidth: 1, borderColor: '#BDBDBD', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
-    color: '#000', backgroundColor: '#FFFFFF', marginBottom: 8,
-  },
+  // Facebook live leads
+  syncStatusRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  syncStatusText:    { fontSize: 13 },
+  webhookConfig:     { marginTop: 12, backgroundColor: C.bg, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+  webhookConfigTitle:{ fontSize: 14, fontWeight: '700', color: C.navy, marginBottom: 4 },
+  webhookConfigHint: { fontSize: 12, color: C.textMid, marginBottom: 10 },
+  webhookInput:      { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: C.navy, backgroundColor: C.white, marginBottom: 8 },
+
+  // Contacts modal
+  contactsModal:      { flex: 1, backgroundColor: C.bg },
+  contactsHeader:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  contactsHeaderTitle:{ fontSize: 17, fontWeight: '800', color: C.white },
+  contactsHeaderSub:  { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  importBtn:          { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: C.gold, borderRadius: 10 },
+  importBtnText:      { fontSize: 14, fontWeight: '700', color: C.navy },
+  contactsSearchWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.white, borderBottomWidth: 1, borderBottomColor: C.border, gap: 8 },
+  contactsSearchBar:  { flex: 1, elevation: 0, backgroundColor: C.bg, borderRadius: 10 },
+  selectAllBtn:       { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EEF2FF' },
+  selectAllText:      { fontSize: 12, fontWeight: '700', color: C.navy },
+  contactItem:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.white, gap: 12 },
+  contactItemSelected:{ backgroundColor: '#EEF2FF' },
+  contactAvatar:      { width: 40, height: 40, borderRadius: 12, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, justifyContent: 'center', alignItems: 'center' },
+  contactAvatarSelected:{ backgroundColor: C.navy, borderColor: C.navy },
+  contactAvatarText:  { fontSize: 15, fontWeight: '800', color: C.navy },
+  contactName:        { fontSize: 15, fontWeight: '600', color: C.textPrimary },
+  contactPhone:       { fontSize: 12, color: C.textMid, marginTop: 2 },
+  contactUncheck:     { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.border },
 });

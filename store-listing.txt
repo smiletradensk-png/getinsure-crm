@@ -1,0 +1,146 @@
+====================================================
+  GETINSURE CRM — GOOGLE PLAY STORE LISTING CONTENT
+====================================================
+
+APP TITLE (30 chars max)
+-------------------------
+GETINSURE CRM
+
+
+SHORT DESCRIPTION (80 chars max)
+---------------------------------
+Insurance CRM for agents: leads, follow-ups & pipeline. Offline. Free forever.
+(79 chars)
+
+
+FULL DESCRIPTION (4000 chars max)
+------------------------------------
+GETINSURE CRM is the ultimate sales management tool built exclusively for independent insurance agents and advisors. Manage your entire sales pipeline — from first contact to policy closure — right from your phone, with zero subscription fees and no internet required.
+
+🔒 100% OFFLINE & PRIVATE
+Your data never leaves your device. No cloud sync, no server, no subscription. All lead data is stored locally in an encrypted SQLite database. Your clients' information stays yours.
+
+👥 LEAD MANAGEMENT
+• Add unlimited leads with name, mobile, product, status, source, city, and notes
+• Track 6 lead statuses: New → Interested → Follow-up → Pipeline → Closed / Not Interested
+• Search and filter leads instantly by name, mobile, or city
+• Status filter tabs: view all New leads, Interested clients, or Closed deals at a glance
+• Bulk WhatsApp messaging with personalised templates — send to multiple leads at once
+• One-tap Call or WhatsApp directly from the lead card
+
+📅 FOLLOW-UP MANAGEMENT
+• Schedule follow-ups with date, time, and type (Call / WhatsApp / Meeting / Visit / Email)
+• Three smart views: Overdue, Today, and Upcoming follow-ups
+• Get local push notifications so you never miss a follow-up
+• Mark follow-ups complete and move leads to the next stage
+
+📊 PIPELINE & DASHBOARD
+• Kanban-style pipeline view across all sales stages
+• Dashboard with live stats: total leads, closing rate, today's tasks
+• Interested, Overdue, Follow-up, and Closed count cards at a glance
+• Pipeline completion percentages per stage
+
+📱 IMPORT LEADS FROM MULTIPLE SOURCES
+• Import from Phone Contacts — select contacts and import as leads instantly
+• Import from CSV — supports Facebook Ads, IndiaMart, WhatsApp Business, Google Sheets exports
+• Facebook Live Leads webhook — receive Facebook Lead Ads automatically in real-time
+• Bulk CSV import with intelligent column detection
+
+💾 BACKUP & EXPORT
+• Export leads to CSV or JSON — share via WhatsApp, Email, or Google Drive
+• Auto-Backup to Downloads folder — daily automatic backup with one-time setup
+• Restore from backup — import leads back after reinstalling
+• Share Backup — manually share a full backup to Google Drive or WhatsApp
+
+🎨 PREMIUM FINTECH DESIGN
+• Deep navy and gold color scheme inspired by professional banking apps
+• Clean card-based UI with smooth gradients
+• Adjustable font sizes: Small, Normal, Large, XL
+• Dark gradient headers with hero stats strip
+
+🔐 ACCOUNT & SECURITY
+• Email + 4-digit PIN login — no OTP, no phone number required
+• Multiple accounts on one device — each with separate data
+• Forgot PIN recovery via registered email
+• All credentials stored locally only
+
+WHO IS THIS FOR?
+• LIC agents and advisors
+• Private insurance agents (Health, Motor, Life, Term)
+• ULIP and Mutual Fund advisors
+• Any freelance financial advisor managing a client pipeline
+
+WHAT PRODUCTS CAN YOU TRACK?
+Whole Life, Child Plans, Retirement Plans, Health Insurance, Motor Insurance, Travel Insurance, Home Insurance, Corporate Insurance, ULIP, Endowment, SIP, Mutual Fund, and more.
+
+No subscription. No ads. No cloud. Just a powerful local CRM that works for you.
+
+Download GETINSURE CRM today and take control of your insurance sales pipeline.
+
+
+KEYWORDS / TAGS
+----------------
+insurance CRM, lead management, insurance agent app, LIC agent app, sales CRM offline,
+follow-up reminder, pipeline management, insurance leads, offline CRM India,
+health insurance leads, motor insurance CRM, term insurance advisor, ULIP tracker,
+mutual fund CRM, insurance sales app, free CRM India, LIC advisor tool,
+insurance pipeline, client management insurance, lead follow-up app
+
+
+CATEGORY
+---------
+Business
+
+
+CONTENT RATING
+---------------
+Everyone
+
+
+CONTACT EMAIL (for Play Store)
+--------------------------------
+smiletradensk@gmail.com
+
+
+APP SCREENSHOTS NEEDED (minimum 2, recommended 8)
+---------------------------------------------------
+1. Login screen (email + PIN pad on navy gradient)
+2. Dashboard (stat cards, hero strip, welcome header)
+3. Leads list (cards with status colors, search bar)
+4. Add Lead form
+5. Follow-ups screen (Today/Overdue/Upcoming tabs)
+6. Pipeline kanban view
+7. Settings screen (account card, contacts import)
+8. Import from Contacts modal
+
+
+FEATURE GRAPHIC (1024 x 500 px)
+----------------------------------
+Use navy (#1A237E) background with gold (#FFD700) GETINSURE CRM logo text.
+Tagline: "Your Premium Insurance Sales Partner"
+
+
+PRIVACY POLICY URL
+--------------------
+Required by Google Play. Options:
+A) Use the in-app Privacy Policy (not a URL — won't satisfy Play Store requirement)
+B) Host the privacy policy text on a free static page:
+   - GitHub Pages: Create a repo named "getinsure-privacy" and publish index.html
+   - Notion public page
+   - Carrd.co (free plan)
+   - Recommended URL format: https://smiletradensk-png.github.io/getinsure-privacy/
+
+
+RELEASE NOTES (What's New) — Version 1.1.0
+--------------------------------------------
+• NEW: Import leads directly from phone contacts
+• NEW: Multi-account support — manage multiple agent profiles on one device
+• NEW: Privacy Policy screen in Settings
+• IMPROVED: Login screen now shows registered name and email
+• IMPROVED: Center Add Lead button in navigation bar
+• IMPROVED: Data isolation — each account sees only their own leads
+• IMPROVED: Settings shows your name, email, and GET INSURE brand
+• FIX: Dashboard fits on one screen without scrolling
+• FIX: Logout always visible in Settings
+
+====================================================

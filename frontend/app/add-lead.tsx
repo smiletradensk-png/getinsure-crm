@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { scheduleFollowupNotification, cancelAllLeadNotifications } from '../utils/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveLeadLocal, getLeadByIdLocal, initializeDatabase } from '../utils/database';
 
 const PRODUCTS = [
@@ -159,7 +160,8 @@ export default function AddLeadScreen() {
         updated_at: new Date().toISOString(),
       };
 
-      const result = await saveLeadLocal(leadData);
+      const userEmail = await AsyncStorage.getItem('user_email') ?? '';
+      const result = await saveLeadLocal(leadData, userEmail);
 
       if (result.success) {
         if (nextFollowupDate && nextFollowupTime) {

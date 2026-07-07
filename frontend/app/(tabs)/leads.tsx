@@ -1,369 +1,309 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, Alert, Modal, Platform } from 'react-native';
-import { Text, Card, FAB, Chip, ActivityIndicator, Searchbar, IconButton, Checkbox, Button, TextInput, ProgressBar } from 'react-native-paper';
+import {
+  View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
+  Linking, Alert, Modal, Platform,
+} from 'react-native';
+import {
+  Text, FAB, ActivityIndicator, Searchbar,
+  Checkbox, Button, TextInput, ProgressBar,
+} from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
-import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase } from '../../utils/database';
+import { C } from '../theme';
 
 interface Lead {
-  id: string;
-  name: string;
-  mobile: string;
-  product: string;
-  status: string;
-  source: string;
-  city: string;
-  next_followup_date?: string;
-  notes: string;
+  id: string; name: string; mobile: string; product: string;
+  status: string; source: string; city: string;
+  next_followup_date?: string; notes: string;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  New:           '#1565C0',
+  Interested:    '#2E7D32',
+  'Follow-up':   '#E65100',
+  Pipeline:      '#6A1B9A',
+  Closed:        '#00695C',
+  'Not Interested': '#546E7A',
+};
+
+const STATUSES = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
+
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
+}
+
+function fmtPhone(phone: string) {
+  let c = phone.replace(/[^0-9]/g, '');
+  if (c.startsWith('0')) c = c.substring(1);
+  if (c.length === 10) c = '91' + c;
+  return c;
 }
 
 export default function LeadsScreen() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [leads, setLeads]               = useState<Lead[]>([]);
+  const [filtered, setFiltered]         = useState<Lead[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [search, setSearch]             = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
-  const [showBulkWhatsAppModal, setShowBulkWhatsAppModal] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState('Hi [Name], Your insurance quote is ready!');
-  const [isSending, setIsSending] = useState(false);
-  const [sendingProgress, setSendingProgress] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [selectedMedia, setSelectedMedia] = useState<{uri: string, type: 'image' | 'video'} | null>(null);
-
-  const statuses = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
-
-  const formatPhoneForWhatsApp = (phone: string): string => {
-    let cleaned = phone.replace(/[^0-9]/g, '');
-    if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-    if (cleaned.length === 10) cleaned = '91' + cleaned;
-    return cleaned;
-  };
+  const [selected, setSelected]         = useState<Set<string>>(new Set());
+  const [showWAModal, setShowWAModal]   = useState(false);
+  const [bulkMsg, setBulkMsg]           = useState('Hi [Name], your insurance quote is ready!');
+  const [sending, setSending]           = useState(false);
+  const [sendProgress, setSendProgress] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [userEmail, setUserEmail]       = useState('');
 
   const fetchLeads = async () => {
     try {
       await initializeDatabase();
-      const data = getAllLeadsLocal();
+      const email = await AsyncStorage.getItem('user_email') ?? '';
+      setUserEmail(email);
+      const data = getAllLeadsLocal(email);
       setLeads(data);
-      applyFilters(searchQuery, statusFilter, data);
-    } catch (error) {
-      console.error('Error fetching leads:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+      applyFilters(search, statusFilter, data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
   };
 
-  // Auto-refresh when screen gets focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchLeads();
-    }, [])
-  );
+  useFocusEffect(useCallback(() => { fetchLeads(); }, []));
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchLeads();
-  };
-
-  const onSearchChange = (query: string) => {
-    setSearchQuery(query);
-    applyFilters(query, statusFilter, leads);
-  };
-
-  const applyFilters = (search: string, status: string, data: Lead[] = leads) => {
-    let filtered = data;
-    if (status !== 'All') filtered = filtered.filter(lead => lead.status === status);
-    if (search !== '') {
-      filtered = filtered.filter(
-        (lead) =>
-          lead.name.toLowerCase().includes(search.toLowerCase()) ||
-          lead.mobile.includes(search) ||
-          (lead.city || '').toLowerCase().includes(search.toLowerCase())
-      );
-    }
-    setFilteredLeads(filtered);
-  };
-
-  const handleStatusFilter = (status: string) => {
-    setStatusFilter(status);
-    applyFilters(searchQuery, status, leads);
-  };
-
-  const getStatusCount = (status: string) => {
-    if (status === 'All') return leads.length;
-    return leads.filter(lead => lead.status === status).length;
-  };
-
-  const toggleSelection = (leadId: string) => {
-    const newSelection = new Set(selectedLeads);
-    if (newSelection.has(leadId)) newSelection.delete(leadId);
-    else newSelection.add(leadId);
-    setSelectedLeads(newSelection);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedLeads.size === filteredLeads.length) setSelectedLeads(new Set());
-    else setSelectedLeads(new Set(filteredLeads.map(lead => lead.id)));
-  };
-
-  const handleBulkDelete = () => {
-    Alert.alert(
-      'Delete Selected Leads',
-      `Are you sure you want to delete ${selectedLeads.size} lead(s)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: async () => {
-            Array.from(selectedLeads).forEach(leadId => deleteLeadLocal(leadId));
-            setSelectedLeads(new Set());
-            setSelectionMode(false);
-            fetchLeads();
-            Alert.alert('Success', 'Leads deleted successfully');
-          },
-        },
-      ]
+  const applyFilters = (q: string, s: string, data: Lead[] = leads) => {
+    let f = data;
+    if (s !== 'All') f = f.filter(l => l.status === s);
+    if (q) f = f.filter(l =>
+      l.name.toLowerCase().includes(q.toLowerCase()) ||
+      l.mobile.includes(q) ||
+      (l.city||'').toLowerCase().includes(q.toLowerCase())
     );
+    setFiltered(f);
   };
 
-  const handleDelete = (leadId: string) => {
-    Alert.alert('Delete Lead', 'Are you sure you want to delete this lead?', [
+  const toggleSel = (id: string) => {
+    const n = new Set(selected);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setSelected(n);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert('Delete Lead', 'Delete this lead?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: () => {
-          deleteLeadLocal(leadId);
-          fetchLeads();
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteLeadLocal(id); fetchLeads(); } },
     ]);
   };
 
-  const handleBulkWhatsApp = () => {
-    setShowBulkWhatsAppModal(true);
-    setSelectedMedia(null);
-  };
-
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) { Alert.alert('Permission Required', 'Please allow access to your photo library.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
-    if (!result.canceled && result.assets[0]) setSelectedMedia({ uri: result.assets[0].uri, type: 'image' });
+  const handleBulkDelete = () => {
+    Alert.alert('Delete', `Delete ${selected.size} lead(s)?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+        selected.forEach(id => deleteLeadLocal(id));
+        setSelected(new Set()); setSelectionMode(false); fetchLeads();
+      }},
+    ]);
   };
 
   const sendBulkWhatsApp = async () => {
-    const selectedLeadsData = leads.filter(lead => selectedLeads.has(lead.id));
-    Alert.alert(
-      '🚀 Start Bulk WhatsApp',
-      `Ready to send to ${selectedLeads.size} lead(s)\n✅ Messages will open in WhatsApp\n✅ Tap Send for each`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Start Now',
-          onPress: async () => {
-            setIsSending(true);
-            for (let i = 0; i < selectedLeadsData.length; i++) {
-              const lead = selectedLeadsData[i];
-              const personalizedMessage = bulkMessage.replace(/\[Name\]/g, lead.name);
-              const encodedMessage = encodeURIComponent(personalizedMessage);
-              setSendingProgress(((i + 1) / selectedLeadsData.length) * 100);
-              await Clipboard.setStringAsync(personalizedMessage);
-              const formattedPhone = formatPhoneForWhatsApp(lead.mobile);
-              await Linking.openURL(`https://wa.me/${formattedPhone}?text=${encodedMessage}`);
-              Alert.alert(`Lead ${i + 1}/${selectedLeadsData.length}`, `📱 WhatsApp opened for ${lead.name}\n✅ Tap Send, then come back`, [{ text: 'Next' }], { cancelable: true });
-              await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-            setIsSending(false);
-            setSendingProgress(0);
-            setShowBulkWhatsAppModal(false);
-            setSelectionMode(false);
-            setSelectedLeads(new Set());
-            Alert.alert('✅ Done!', `Sent to ${selectedLeadsData.length} leads!`);
-          },
-        },
-      ]
-    );
+    const list = leads.filter(l => selected.has(l.id));
+    Alert.alert('Send WhatsApp', `Send to ${list.length} lead(s)?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Start', onPress: async () => {
+        setSending(true);
+        for (let i = 0; i < list.length; i++) {
+          const msg = bulkMsg.replace(/\[Name\]/g, list[i].name);
+          await Clipboard.setStringAsync(msg);
+          await Linking.openURL(`https://wa.me/${fmtPhone(list[i].mobile)}?text=${encodeURIComponent(msg)}`);
+          setSendProgress(((i+1)/list.length)*100);
+          Alert.alert(`${i+1}/${list.length}`, `WhatsApp opened for ${list[i].name}. Tap Send, then return.`, [{text:'Next'}], {cancelable:true});
+          await new Promise(r => setTimeout(r, 3000));
+        }
+        setSending(false); setSendProgress(0); setShowWAModal(false);
+        setSelectionMode(false); setSelected(new Set());
+        Alert.alert('Done', `Sent to ${list.length} leads!`);
+      }},
+    ]);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'New': return '#2196F3';
-      case 'Interested': return '#4CAF50';
-      case 'Follow-up': return '#FF9800';
-      case 'Pipeline': return '#9C27B0';
-      case 'Closed': return '#00796B';
-      case 'Not Interested': return '#757575';
-      default: return '#757575';
-    }
-  };
-
-  const handleCall = (mobile: string) => Linking.openURL(`tel:${mobile}`);
-  const handleWhatsApp = (mobile: string) => Linking.openURL(`https://wa.me/${formatPhoneForWhatsApp(mobile)}`);
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#009688" />
-      </View>
-    );
-  }
+  if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={C.navy} /></View>;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.headerTitle}>Leads</Text>
-        <Text variant="bodyMedium" style={styles.headerSubtitle}>{filteredLeads.length} leads found</Text>
+      {/* Header */}
+      <LinearGradient colors={[C.navyDark, C.navy]} style={styles.header}>
+        <Text style={styles.headerTitle}>Leads</Text>
+        <Text style={styles.headerSub}>{filtered.length} of {leads.length} leads</Text>
+      </LinearGradient>
+
+      {/* Search */}
+      <View style={styles.searchWrap}>
+        <Searchbar
+          placeholder="Search name, mobile, city…"
+          onChangeText={q => { setSearch(q); applyFilters(q, statusFilter); }}
+          value={search}
+          style={styles.searchBar}
+          inputStyle={{ fontSize: 14 }}
+          iconColor={C.navy}
+        />
       </View>
 
-      <View style={styles.searchContainer}>
-        <Searchbar placeholder="Search by name, mobile, or city" onChangeText={onSearchChange} value={searchQuery} style={styles.searchBar} />
-      </View>
-
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {statuses.map((status) => (
+      {/* Status filters */}
+      <View style={styles.filterWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {STATUSES.map(s => (
             <TouchableOpacity
-              key={status}
-              style={[styles.filterChip, statusFilter === status && styles.filterChipActive]}
-              onPress={() => handleStatusFilter(status)}
+              key={s}
+              style={[styles.chip, statusFilter === s && styles.chipActive]}
+              onPress={() => { setStatusFilter(s); applyFilters(search, s); }}
             >
-              <Text style={[styles.filterChipText, statusFilter === status && styles.filterChipTextActive]}>
-                {status} ({getStatusCount(status)})
+              <Text style={[styles.chipText, statusFilter === s && styles.chipTextActive]}>
+                {s} ({s === 'All' ? leads.length : leads.filter(l=>l.status===s).length})
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
+      {/* Selection bar */}
       {selectionMode && (
-        <View style={styles.selectionControls}>
-          <View style={styles.selectionInfo}>
-            <Checkbox status={selectedLeads.size === filteredLeads.length ? 'checked' : 'unchecked'} onPress={toggleSelectAll} />
-            <Text variant="bodyMedium" style={styles.selectionText}>{selectedLeads.size} selected</Text>
+        <View style={styles.selBar}>
+          <View style={styles.selLeft}>
+            <Checkbox
+              status={selected.size === filtered.length ? 'checked' : 'unchecked'}
+              onPress={() => selected.size === filtered.length ? setSelected(new Set()) : setSelected(new Set(filtered.map(l=>l.id)))}
+              color={C.navy}
+            />
+            <Text style={styles.selText}>{selected.size} selected</Text>
           </View>
-          <View style={styles.bulkActions}>
-            <Button mode="contained" onPress={handleBulkWhatsApp} disabled={selectedLeads.size === 0} icon="whatsapp" buttonColor="#25D366" style={styles.bulkButton}>WhatsApp</Button>
-            <Button mode="contained" onPress={handleBulkDelete} disabled={selectedLeads.size === 0} icon="delete" buttonColor="#F44336" style={styles.bulkButton}>Delete</Button>
-            <Button mode="outlined" onPress={() => { setSelectionMode(false); setSelectedLeads(new Set()); }} textColor="#009688">Done</Button>
+          <View style={styles.selActions}>
+            <Button mode="contained" onPress={() => setShowWAModal(true)} disabled={selected.size===0} icon="whatsapp" buttonColor="#25D366" compact>WA</Button>
+            <Button mode="contained" onPress={handleBulkDelete}  disabled={selected.size===0} icon="delete"   buttonColor={C.danger}   compact>Del</Button>
+            <Button mode="outlined"  onPress={() => { setSelectionMode(false); setSelected(new Set()); }} textColor={C.navy} compact>Done</Button>
           </View>
         </View>
       )}
 
-      {!selectionMode && filteredLeads.length > 0 && (
-        <View style={styles.actionBar}>
-          <Button mode="outlined" onPress={() => setSelectionMode(true)} icon="checkbox-marked-outline" textColor="#009688">Select Leads</Button>
+      {!selectionMode && filtered.length > 0 && (
+        <View style={styles.selectRow}>
+          <TouchableOpacity onPress={() => setSelectionMode(true)} style={styles.selBtn}>
+            <MaterialCommunityIcons name="checkbox-marked-outline" size={16} color={C.navy} />
+            <Text style={styles.selBtnText}>Select</Text>
+          </TouchableOpacity>
         </View>
       )}
 
       <ScrollView
-        style={styles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#009688']} />}
+        style={styles.scroll}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchLeads(); }} colors={[C.navy]} />}
       >
-        <View style={styles.content}>
-          {filteredLeads.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="account-off" size={64} color="#BDBDBD" />
-              <Text variant="titleMedium" style={styles.emptyText}>No leads found</Text>
-              <Text variant="bodyMedium" style={styles.emptySubtext}>Add your first lead to get started</Text>
+        <View style={styles.list}>
+          {filtered.length === 0 ? (
+            <View style={styles.empty}>
+              <MaterialCommunityIcons name="account-search-outline" size={64} color={C.border} />
+              <Text style={styles.emptyText}>No leads found</Text>
+              <Text style={styles.emptySub}>Add your first lead to get started</Text>
             </View>
-          ) : (
-            filteredLeads.map((lead) => (
+          ) : filtered.map(lead => {
+            const statusColor = STATUS_COLORS[lead.status] || C.textMid;
+            return (
               <TouchableOpacity
                 key={lead.id}
-                onPress={() => selectionMode ? toggleSelection(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } })}
-                activeOpacity={0.7}
+                style={styles.card}
+                onPress={() => selectionMode ? toggleSel(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } })}
+                activeOpacity={0.8}
               >
-                <Card style={styles.leadCard}>
-                  <Card.Content>
-                    <View style={styles.leadHeader}>
-                      {selectionMode && (
-                        <Checkbox status={selectedLeads.has(lead.id) ? 'checked' : 'unchecked'} onPress={() => toggleSelection(lead.id)} />
-                      )}
-                      <View style={styles.leadInfo}>
-                        <Text variant="titleLarge" style={styles.leadName}>{lead.name}</Text>
-                        <Text variant="bodyMedium" style={styles.leadMobile}>{lead.mobile}</Text>
-                        {lead.city ? <Text variant="bodySmall" style={styles.leadCity}>📍 {lead.city}</Text> : null}
-                      </View>
-                      {!selectionMode && (
-                        <IconButton icon="delete" iconColor="#F44336" size={20} onPress={() => handleDelete(lead.id)} />
-                      )}
-                    </View>
+                {/* Colored left bar */}
+                <View style={[styles.cardBar, { backgroundColor: statusColor }]} />
 
-                    <View style={styles.chipContainer}>
-                      <Chip style={[styles.statusChip, { backgroundColor: getStatusColor(lead.status) }]} textStyle={{ color: '#FFFFFF' }}>
-                        {lead.status}
-                      </Chip>
-                      <Chip style={styles.chip}>{lead.product}</Chip>
-                    </View>
-
-                    {lead.next_followup_date ? (
-                      <Text variant="bodySmall" style={styles.followupText}>
-                        📅 Follow-up: {lead.next_followup_date.split('-').reverse().join('-')}
-                      </Text>
-                    ) : null}
-
-                    {!selectionMode && (
-                      <View style={styles.actionButtons}>
-                        <TouchableOpacity style={styles.callButton} onPress={() => handleCall(lead.mobile)}>
-                          <MaterialCommunityIcons name="phone" size={20} color="#FFFFFF" />
-                          <Text style={styles.actionButtonText}>Call</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.whatsappButton} onPress={() => handleWhatsApp(lead.mobile)}>
-                          <MaterialCommunityIcons name="whatsapp" size={20} color="#FFFFFF" />
-                          <Text style={styles.actionButtonText}>WhatsApp</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.editButton} onPress={() => router.push({ pathname: '/add-lead', params: { id: lead.id, mode: 'edit' } })}>
-                          <MaterialCommunityIcons name="pencil" size={20} color="#FFFFFF" />
-                          <Text style={styles.actionButtonText}>Edit</Text>
-                        </TouchableOpacity>
+                <View style={styles.cardBody}>
+                  {/* Row: avatar + info + actions */}
+                  <View style={styles.cardTop}>
+                    {selectionMode ? (
+                      <Checkbox status={selected.has(lead.id) ? 'checked' : 'unchecked'} onPress={() => toggleSel(lead.id)} color={C.navy} />
+                    ) : (
+                      <View style={[styles.avatar, { backgroundColor: statusColor + '22' }]}>
+                        <Text style={[styles.avatarText, { color: statusColor }]}>{getInitials(lead.name)}</Text>
                       </View>
                     )}
-                  </Card.Content>
-                </Card>
+                    <View style={styles.info}>
+                      <Text style={styles.name} numberOfLines={1}>{lead.name}</Text>
+                      <Text style={styles.mobile}>{lead.mobile}</Text>
+                      {lead.city ? <Text style={styles.city}>{lead.city}</Text> : null}
+                    </View>
+                    {!selectionMode && (
+                      <TouchableOpacity onPress={() => handleDelete(lead.id)} style={styles.deleteBtn} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Tags row */}
+                  <View style={styles.tagsRow}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                      <Text style={styles.statusBadgeText}>{lead.status}</Text>
+                    </View>
+                    <View style={styles.productBadge}>
+                      <Text style={styles.productBadgeText}>{lead.product}</Text>
+                    </View>
+                  </View>
+
+                  {lead.next_followup_date && (
+                    <View style={styles.followupRow}>
+                      <MaterialCommunityIcons name="calendar-clock" size={14} color={C.warning} />
+                      <Text style={styles.followupText}> {lead.next_followup_date.split('-').reverse().join('-')}</Text>
+                    </View>
+                  )}
+
+                  {/* Action buttons */}
+                  {!selectionMode && (
+                    <View style={styles.actBtns}>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E3F2FD' }]} onPress={() => Linking.openURL(`tel:${lead.mobile}`)}>
+                        <MaterialCommunityIcons name="phone" size={16} color="#1565C0" />
+                        <Text style={[styles.actBtnText, { color: '#1565C0' }]}>Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E8F5E9' }]} onPress={() => Linking.openURL(`https://wa.me/${fmtPhone(lead.mobile)}`)}>
+                        <MaterialCommunityIcons name="whatsapp" size={16} color="#2E7D32" />
+                        <Text style={[styles.actBtnText, { color: '#2E7D32' }]}>WhatsApp</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.navy + '15' }]} onPress={() => router.push({ pathname: '/add-lead', params: { id: lead.id, mode: 'edit' } })}>
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={C.navy} />
+                        <Text style={[styles.actBtnText, { color: C.navy }]}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
-            ))
-          )}
+            );
+          })}
         </View>
       </ScrollView>
 
-      <FAB style={styles.fab} icon="plus" onPress={() => router.push('/add-lead')} color="#FFFFFF" />
+      {/* FAB removed — use center tab bar button */}
 
       {/* Bulk WhatsApp Modal */}
-      <Modal visible={showBulkWhatsAppModal} transparent animationType="slide">
+      <Modal visible={showWAModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text variant="titleLarge" style={styles.modalTitle}>Bulk WhatsApp</Text>
-            <Text variant="bodyMedium" style={styles.modalSubtitle}>
-              {selectedLeads.size} leads selected
-            </Text>
-            <Text variant="labelMedium" style={styles.templateLabel}>Message Template:</Text>
-            <TextInput
-              value={bulkMessage}
-              onChangeText={setBulkMessage}
-              mode="outlined"
-              multiline
-              numberOfLines={4}
-              style={styles.messageInput}
-              outlineColor="#009688"
-              activeOutlineColor="#009688"
-            />
-            <Text variant="bodySmall" style={styles.hintText}>Use [Name] to personalize the message</Text>
-            {isSending && (
-              <View style={styles.progressContainer}>
-                <ProgressBar progress={sendingProgress / 100} color="#009688" style={styles.progressBar} />
-                <Text variant="bodySmall" style={styles.progressText}>{Math.round(sendingProgress)}% complete</Text>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Bulk WhatsApp</Text>
+            <Text style={styles.modalSub}>{selected.size} leads selected</Text>
+            <Text style={styles.modalLabel}>Message Template</Text>
+            <TextInput value={bulkMsg} onChangeText={setBulkMsg} mode="outlined" multiline numberOfLines={4}
+              style={styles.msgInput} outlineColor={C.border} activeOutlineColor={C.navy} />
+            <Text style={styles.hintText}>Use [Name] to personalise</Text>
+            {sending && (
+              <View style={styles.progressWrap}>
+                <ProgressBar progress={sendProgress/100} color={C.navy} style={styles.progressBar} />
+                <Text style={styles.progressText}>{Math.round(sendProgress)}%</Text>
               </View>
             )}
-            <View style={styles.modalButtons}>
-              <Button mode="outlined" onPress={() => setShowBulkWhatsAppModal(false)} textColor="#009688" style={styles.modalButton}>Cancel</Button>
-              <Button mode="contained" onPress={sendBulkWhatsApp} buttonColor="#25D366" style={styles.modalButton} disabled={isSending}>
-                {isSending ? 'Sending...' : 'Send All'}
+            <View style={styles.modalBtns}>
+              <Button mode="outlined" onPress={() => setShowWAModal(false)} textColor={C.navy} style={styles.modalBtn}>Cancel</Button>
+              <Button mode="contained" onPress={sendBulkWhatsApp} buttonColor="#25D366" style={styles.modalBtn} disabled={sending}>
+                {sending ? 'Sending…' : 'Send All'}
               </Button>
             </View>
           </View>
@@ -374,56 +314,74 @@ export default function LeadsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#009688', padding: 16, paddingBottom: 20 },
-  headerTitle: { color: '#FFFFFF', fontWeight: 'bold' },
-  headerSubtitle: { color: '#E0F2F1', marginTop: 4 },
-  searchContainer: { padding: 16, paddingBottom: 8, backgroundColor: '#FFFFFF' },
-  searchBar: { elevation: 0, backgroundColor: '#F5F5F5' },
-  filterContainer: { backgroundColor: '#FFFFFF', paddingBottom: 12 },
-  filterScroll: { paddingHorizontal: 16 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0F0F0', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#009688' },
-  filterChipText: { color: '#757575', fontSize: 12 },
-  filterChipTextActive: { color: '#FFFFFF' },
-  selectionControls: { backgroundColor: '#E8F5E9', padding: 12 },
-  selectionInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  selectionText: { marginLeft: 8 },
-  bulkActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  bulkButton: { flex: 1 },
-  actionBar: { padding: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  scrollView: { flex: 1 },
-  content: { padding: 12 },
-  emptyContainer: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { color: '#BDBDBD', marginTop: 16 },
-  emptySubtext: { color: '#BDBDBD', marginTop: 8 },
-  leadCard: { marginBottom: 12, elevation: 2, backgroundColor: '#FFFFFF' },
-  leadHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
-  leadInfo: { flex: 1 },
-  leadName: { fontWeight: 'bold', color: '#212121' },
-  leadMobile: { color: '#757575', marginTop: 2 },
-  leadCity: { color: '#9E9E9E', marginTop: 2 },
-  chipContainer: { flexDirection: 'row', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
-  statusChip: { height: 28 },
-  chip: { height: 28, backgroundColor: '#F0F0F0' },
-  followupText: { color: '#FF9800', marginBottom: 8 },
-  actionButtons: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  callButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#2196F3', paddingVertical: 8, borderRadius: 8 },
-  whatsappButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#25D366', paddingVertical: 8, borderRadius: 8 },
-  editButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#009688', paddingVertical: 8, borderRadius: 8 },
-  actionButtonText: { color: '#FFFFFF', fontWeight: '600', fontSize: 13 },
-  fab: { position: 'absolute', right: 16, bottom: 80, backgroundColor: '#009688' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalTitle: { fontWeight: 'bold', color: '#000000', marginBottom: 4 },
-  modalSubtitle: { color: '#757575', marginBottom: 16 },
-  templateLabel: { color: '#009688', marginBottom: 8 },
-  messageInput: { marginBottom: 8 },
-  hintText: { color: '#9E9E9E', marginBottom: 16 },
-  progressContainer: { marginBottom: 16 },
-  progressBar: { height: 8, borderRadius: 4 },
-  progressText: { color: '#757575', marginTop: 4, textAlign: 'center' },
-  modalButtons: { flexDirection: 'row', gap: 12 },
-  modalButton: { flex: 1 },
+  container: { flex: 1, backgroundColor: C.bg },
+  loader: { flex: 1, justifyContent:'center', alignItems:'center', backgroundColor: C.bg },
+
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: C.white },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
+
+  searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: C.white },
+  searchBar: { elevation: 0, backgroundColor: C.bg, borderRadius: 12 },
+
+  filterWrap: { backgroundColor: C.white, paddingBottom: 10 },
+  filterRow: { paddingHorizontal: 16, gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  chipActive: { backgroundColor: C.navy, borderColor: C.navy },
+  chipText: { fontSize: 12, fontWeight: '600', color: C.textMid },
+  chipTextActive: { color: C.white },
+
+  selBar: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#EEF2FF', borderBottomWidth:1, borderBottomColor:C.border },
+  selLeft: { flexDirection:'row', alignItems:'center' },
+  selText: { fontSize:14, fontWeight:'600', color:C.navy, marginLeft:4 },
+  selActions: { flexDirection:'row', gap:6 },
+
+  selectRow: { flexDirection:'row', justifyContent:'flex-end', paddingHorizontal:16, paddingVertical:6, backgroundColor:C.white, borderBottomWidth:1, borderBottomColor:C.border },
+  selBtn: { flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:10, borderRadius:8, backgroundColor:'#EEF2FF' },
+  selBtnText: { fontSize:12, fontWeight:'700', color:C.navy },
+
+  scroll: { flex:1 },
+  list: { padding:12, gap:10 },
+  empty: { alignItems:'center', paddingVertical:60 },
+  emptyText: { fontSize:16, color:C.textMid, fontWeight:'600', marginTop:16 },
+  emptySub: { fontSize:13, color:C.textLight, marginTop:6 },
+
+  card: { flexDirection:'row', backgroundColor:C.white, borderRadius:16, elevation:3, shadowColor:C.navy, shadowOpacity:0.08, shadowRadius:8, shadowOffset:{width:0,height:2}, overflow:'hidden' },
+  cardBar: { width:4 },
+  cardBody: { flex:1, padding:14 },
+
+  cardTop: { flexDirection:'row', alignItems:'flex-start', marginBottom:10 },
+  avatar: { width:44, height:44, borderRadius:14, justifyContent:'center', alignItems:'center', marginRight:12 },
+  avatarText: { fontSize:15, fontWeight:'800' },
+  info: { flex:1 },
+  name: { fontSize:16, fontWeight:'700', color:C.textPrimary },
+  mobile: { fontSize:13, color:C.textMid, marginTop:2 },
+  city: { fontSize:12, color:C.textLight, marginTop:1 },
+  deleteBtn: { padding:2 },
+
+  tagsRow: { flexDirection:'row', gap:8, marginBottom:8 },
+  statusBadge: { paddingHorizontal:10, paddingVertical:4, borderRadius:20 },
+  statusBadgeText: { fontSize:11, color:C.white, fontWeight:'700' },
+  productBadge: { paddingHorizontal:10, paddingVertical:4, borderRadius:20, backgroundColor:C.bg, borderWidth:1, borderColor:C.border },
+  productBadgeText: { fontSize:11, color:C.textMid, fontWeight:'600' },
+
+  followupRow: { flexDirection:'row', alignItems:'center', marginBottom:8 },
+  followupText: { fontSize:12, color:C.warning, fontWeight:'600' },
+
+  actBtns: { flexDirection:'row', gap:8 },
+  actBtn: { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:4, paddingVertical:8, borderRadius:10 },
+  actBtnText: { fontSize:12, fontWeight:'700' },
+
+  modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.55)', justifyContent:'flex-end' },
+  modalCard: { backgroundColor:C.white, borderTopLeftRadius:24, borderTopRightRadius:24, padding:24 },
+  modalTitle: { fontSize:20, fontWeight:'800', color:C.navy, marginBottom:4 },
+  modalSub: { fontSize:13, color:C.textMid, marginBottom:16 },
+  modalLabel: { fontSize:13, fontWeight:'700', color:C.navy, marginBottom:8 },
+  msgInput: { marginBottom:8 },
+  hintText: { fontSize:12, color:C.textLight, marginBottom:12 },
+  progressWrap: { marginBottom:12 },
+  progressBar: { height:6, borderRadius:4 },
+  progressText: { fontSize:12, color:C.textMid, marginTop:4, textAlign:'center' },
+  modalBtns: { flexDirection:'row', gap:12 },
+  modalBtn: { flex:1 },
 });

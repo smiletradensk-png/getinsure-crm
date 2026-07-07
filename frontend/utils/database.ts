@@ -57,6 +57,10 @@ export const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_interactions_lead ON interactions(lead_id);
     `);
 
+    // Migrations — safe to run on every init (errors are swallowed)
+    try { db.execSync('ALTER TABLE leads ADD COLUMN user_email TEXT DEFAULT ""'); } catch {}
+    try { db.execSync('ALTER TABLE interactions ADD COLUMN user_email TEXT DEFAULT ""'); } catch {}
+
     dbInitialized = true;
     console.log('✅ SQLite Database initialized successfully');
   } catch (error) {
@@ -70,9 +74,20 @@ const ensureDb = async () => {
   }
 };
 
+// Assign existing unowned leads to a user (called once after first login/signup)
+export const migrateExistingLeadsToUser = (userEmail: string) => {
+  if (!db || !userEmail) return;
+  try {
+    db.runSync(
+      'UPDATE leads SET user_email = ? WHERE (user_email = "" OR user_email IS NULL)',
+      [userEmail],
+    );
+  } catch {}
+};
+
 // ─── LEADS ───────────────────────────────────────────────
 
-export const saveLeadLocal = async (lead: any) => {
+export const saveLeadLocal = async (lead: any, userEmail = '') => {
   await ensureDb();
   if (!db) return { success: false, error: 'DB not initialized' };
 
@@ -89,14 +104,15 @@ export const saveLeadLocal = async (lead: any) => {
       `INSERT OR REPLACE INTO leads (
         id, name, mobile, product, status, source, city, notes,
         next_followup_date, next_followup_time, next_followup_type,
-        created_at, updated_at, synced, local_changes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)`,
+        created_at, updated_at, synced, local_changes, user_email
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?)`,
       [
         leadId, name || '', mobile || '',
         product || '', status || 'New', source || '', city || '', notes || '',
         next_followup_date || '', next_followup_time || '', next_followup_type || '',
         created_at || new Date().toISOString(),
         updated_at || new Date().toISOString(),
+        userEmail,
       ]
     );
 
@@ -107,9 +123,15 @@ export const saveLeadLocal = async (lead: any) => {
   }
 };
 
-export const getAllLeadsLocal = (): any[] => {
+export const getAllLeadsLocal = (userEmail = ''): any[] => {
   if (!db) return [];
   try {
+    if (userEmail) {
+      return db.getAllSync(
+        `SELECT * FROM leads WHERE user_email = ? ORDER BY created_at DESC`,
+        [userEmail],
+      );
+    }
     return db.getAllSync(`SELECT * FROM leads ORDER BY created_at DESC`);
   } catch (error) {
     console.error('Error getting local leads:', error);
@@ -139,12 +161,18 @@ export const deleteLeadLocal = (id: string) => {
   }
 };
 
-export const searchLeadsLocal = (query: string): any[] => {
+export const searchLeadsLocal = (query: string, userEmail = ''): any[] => {
   if (!db) return [];
   try {
+    if (userEmail) {
+      return db.getAllSync(
+        `SELECT * FROM leads WHERE user_email = ? AND (name LIKE ? OR mobile LIKE ? OR city LIKE ?) ORDER BY created_at DESC`,
+        [userEmail, `%${query}%`, `%${query}%`, `%${query}%`],
+      );
+    }
     return db.getAllSync(
       `SELECT * FROM leads WHERE name LIKE ? OR mobile LIKE ? OR city LIKE ? ORDER BY created_at DESC`,
-      [`%${query}%`, `%${query}%`, `%${query}%`]
+      [`%${query}%`, `%${query}%`, `%${query}%`],
     );
   } catch (error) {
     console.error('Error searching leads:', error);
@@ -215,23 +243,26 @@ export const deleteInteractionLocal = (id: string) => {
 
 // ─── STATS ───────────────────────────────────────────────
 
-export const getLocalStats = () => {
+export const getLocalStats = (userEmail = '') => {
   if (!db) return { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0 };
 
   try {
     const today = new Date().toISOString().split('T')[0];
-    const total = db.getFirstSync(`SELECT COUNT(*) as count FROM leads`);
-    const todayF = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ?`, [today]);
-    const overdue = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date < ? AND status NOT IN ('Closed', 'Not Interested')`, [today]);
-    const interested = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Interested'`);
-    const closed = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Closed'`);
+    const emailFilter = userEmail ? 'AND user_email = ?' : '';
+    const emailParam  = userEmail ? [userEmail] : [];
+
+    const total      = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE 1=1 ${emailFilter}`, emailParam);
+    const todayF     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ? ${emailFilter}`, [today, ...emailParam]);
+    const overdue    = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date < ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
+    const interested = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Interested' ${emailFilter}`, emailParam);
+    const closed     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Closed' ${emailFilter}`, emailParam);
 
     return {
-      total_leads: total?.count || 0,
-      today_followups: todayF?.count || 0,
-      overdue_followups: overdue?.count || 0,
-      interested_leads: interested?.count || 0,
-      closed_leads: closed?.count || 0,
+      total_leads:        total?.count      || 0,
+      today_followups:    todayF?.count     || 0,
+      overdue_followups:  overdue?.count    || 0,
+      interested_leads:   interested?.count || 0,
+      closed_leads:       closed?.count     || 0,
     };
   } catch (error) {
     console.error('Error getting stats:', error);
@@ -243,7 +274,7 @@ export const getUnsyncedLeads = (): any[] => {
   if (!db) return [];
   try {
     return db.getAllSync(`SELECT * FROM sync_queue WHERE synced = 0`);
-  } catch (error) { return []; }
+  } catch { return []; }
 };
 
 export const markAsSynced = (leadId: string) => {
