@@ -89,7 +89,7 @@ async function fetchLeadFromFacebook(leadgenId) {
   const url =
     `https://graph.facebook.com/v20.0/${leadgenId}` +
     `?access_token=${FB_PAGE_TOKEN}` +
-    `&fields=field_data,created_time,ad_name,form_id`;
+    `&fields=field_data,created_time,ad_name,campaign_name,form_id`;
 
   const res  = await fetch(url);
   const data = await res.json();
@@ -110,6 +110,13 @@ async function fetchLeadFromFacebook(leadgenId) {
     else {
       lead.notes = [lead.notes, `${field.name}: ${value}`].filter(Boolean).join('\n');
     }
+  }
+
+  // Term / Kanyadan campaigns are life insurance leads
+  const adText = `${data.ad_name || ''} ${data.campaign_name || ''}`.toLowerCase();
+  if (!lead.product && /term|kanyadan|life/.test(adText)) lead.product = 'Life';
+  if (data.campaign_name) {
+    lead.notes = [`Campaign: ${data.campaign_name}`, lead.notes].filter(Boolean).join('\n');
   }
 
   return {
