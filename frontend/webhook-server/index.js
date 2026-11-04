@@ -305,21 +305,36 @@ app.post('/lead-from-sheet', async (req, res) => {
       const leadId = pick(row, ['leadid']) || pick(row, ['id']);
       if (!leadId) continue;
       const phone = pick(row, ['phonenumber', 'phone', 'mobile']).replace(/^p:/i, '').replace(/[^\d+]/g, '');
-      const extras = Object.keys(row).filter(k => {
-        const nk = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return !known.some(n => nk === n || nk.includes(n)) && row[k] !== '';
-      }).map(k => `${k.replace(/_/g, ' ')}: ${row[k]}`);
+      const norm = k => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const metaKeys = ['id','leadid','formid','adid','adsetid','campaignid','adsetname','campaignname','adname','formname','createdtime','created','platform','isorganic','leadstatus','fullname','name','phonenumber','phone','mobile','email','city'];
+      // Every form question/answer (any language) becomes a "Question: Answer" line
+      const answers = Object.keys(row)
+        .filter(k => row[k] !== '' && row[k] != null && !metaKeys.includes(norm(k)) && !/^(form|ad|campaign|adset)/.test(norm(k)))
+        .map(k => `${k.replace(/_/g, ' ')}: ${row[k]}`);
       const form = pick(row, ['formname']);
+      const ad = pick(row, ['adname']);
+      const createdAt = pick(row, ['createdtime', 'created']);
+      const email = pick(row, ['email']);
+      // City: explicit column, else the "where do you live" style answer
+      let city = pick(row, ['city']);
+      if (!city) { const k = Object.keys(row).find(k => /राहता|कुठे|where|location|town|village|गाव/i.test(k) && row[k] !== ''); if (k) city = String(row[k]).trim(); }
       const lead = {
         leadgen_id: leadId.replace(/^l:/i, ''),
         name: pick(row, ['fullname', 'name']) || 'Facebook Lead',
         mobile: phone,
-        email: pick(row, ['email']),
-        city: pick(row, ['city']),
-        product: /term/i.test(form + pick(row, ['adname'])) ? 'Term Insurance' : (/kanyadan/i.test(form + pick(row, ['adname'])) ? 'Kanyadan' : 'General Insurance'),
-        notes: [form && `Form: ${form}`, pick(row, ['adname']) && `Ad: ${pick(row, ['adname'])}`, ...extras].filter(Boolean).join('\n'),
+        email,
+        city,
+        product: /term/i.test(form + ad) ? 'Term Insurance' : (/kanyadan/i.test(form + ad) ? 'Kanyadan' : 'General Insurance'),
+        notes: [
+          ...answers,
+          email && `Email: ${email}`,
+          form && `Form: ${form}`,
+          ad && `Ad: ${ad}`,
+          pick(row, ['campaignname']) && `Campaign: ${pick(row, ['campaignname'])}`,
+          pick(row, ['platform']) && `Platform: ${pick(row, ['platform']) === 'fb' ? 'Facebook' : pick(row, ['platform']) === 'ig' ? 'Instagram' : pick(row, ['platform'])}`,
+        ].filter(Boolean).join('\n'),
         source: 'Facebook Ads', status: 'New',
-        created_at: pick(row, ['createdtime', 'created']) || new Date().toISOString(),
+        created_at: createdAt || new Date().toISOString(),
       };
       const r = await persistLead(lead);
       if (r.created) { created++; notifyNewLead(r.doc); } else existing++;

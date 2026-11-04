@@ -75,7 +75,7 @@ export const syncFacebookLeads = async (): Promise<{ synced: number; error?: str
             city: lead.city || '',
             notes: lead.notes || '',
             next_followup_date: '', next_followup_time: '', next_followup_type: '',
-            created_at: new Date().toISOString(),
+            created_at: (lead.created_at && !isNaN(Date.parse(lead.created_at))) ? new Date(lead.created_at).toISOString() : new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, userEmail);
           if (res?.success) { synced++; names.push(lead.name || 'Facebook Lead'); }
