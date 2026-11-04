@@ -43,7 +43,7 @@ export const syncFacebookLeads = async (): Promise<{ synced: number; error?: str
     for (let page = 0; page < 20; page++) {
       const cursor = (await AsyncStorage.getItem(cursorKey)) ?? '1970-01-01T00:00:00.000Z';
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 45000); // Render may be waking up
+      const timeout = setTimeout(() => controller.abort(), 90000); // free server may need ~60s to wake up
       let response: Response;
       try {
         response = await fetch(`${base}/leads?since=${encodeURIComponent(cursor)}`, {
@@ -101,7 +101,7 @@ export const syncFacebookLeads = async (): Promise<{ synced: number; error?: str
     }
     return { synced };
   } catch (err: any) {
-    if (err?.name === 'AbortError') return { synced: 0, error: 'Connection timed out. Check the server URL.' };
+    if (err?.name === 'AbortError') return { synced: 0, error: 'The free server is waking up (can take about a minute). Please tap Sync Now again in a minute.' };
     return { synced: 0, error: err?.message ?? 'Unknown error' };
   } finally {
     running = false;
