@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { theme, C } from './theme';
 import { requestNotificationPermissions } from '../utils/notifications';
 import { initializeDatabase, getAllLeadsLocal } from '../utils/database';
+import { syncFacebookLeads } from '../utils/facebookSync';
 import { AppSettingsProvider, useAppSettings } from '../context/AppSettingsContext';
 import {
   checkForBackupFile, restoreFromBackup, performAutoBackup,
@@ -121,6 +122,15 @@ async function runStartupChecks() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    // Live Facebook leads: catch up on open, on returning to the app, and every minute while open
+    const run = () => { syncFacebookLeads().catch(() => {}); };
+    const t0 = setTimeout(run, 3000);
+    const iv = setInterval(run, 60000);
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') run(); });
+    return () => { clearTimeout(t0); clearInterval(iv); sub.remove(); };
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       try {

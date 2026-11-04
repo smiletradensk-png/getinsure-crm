@@ -22,7 +22,14 @@ const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN   = process.env.VERIFY_TOKEN            || 'getinsure_fb_webhook';
 const FB_APP_SECRET  = process.env.FACEBOOK_APP_SECRET     || '';
 const FB_PAGE_TOKEN  = process.env.FACEBOOK_PAGE_ACCESS_TOKEN || '';
-const APP_ACCESS_KEY = process.env.APP_ACCESS_KEY          || 'getinsure-crm-key';
+const APP_ACCESS_KEY = process.env.APP_ACCESS_KEY          || '';
+const SHEET_KEY      = process.env.SHEET_KEY               || '';
+
+const safeEq = (a, b) => {
+  try { return !!a && !!b && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
+  catch { return false; }
+};
+const appAuthorized = (req) => safeEq(String(req.headers['x-app-key'] || ''), APP_ACCESS_KEY);
 
 // ── Optional: Firebase Firestore for persistent storage ───────────────────────
 
@@ -128,17 +135,41 @@ async function fetchLeadFromFacebook(leadgenId) {
 }
 
 async function persistLead(leadData) {
-  const doc = { ...leadData, received_at: new Date().toISOString() };
+  const key = String(leadData.leadgen_id || '').replace(/[\/\s]/g, '_') ||
+              `gen_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const doc = { ...leadData, id: key, received_at: new Date().toISOString() };
 
   if (db) {
-    const ref = await db.collection('facebook_leads').add(doc);
-    return ref.id;
+    const ref = db.collection('facebook_leads').doc(key);
+    // create() fails if it already exists → no duplicates, nothing overwritten
+    try { await ref.create(doc); return { id: key, created: true, doc }; }
+    catch (e) { if (e.code === 6 || /already exists/i.test(e.message)) return { id: key, created: false }; throw e; }
   }
 
-  const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  memoryLeads.unshift({ id, ...doc });
-  if (memoryLeads.length > 500) memoryLeads.length = 500;
-  return id;
+  if (memoryLeads.some(l => l.id === key)) return { id: key, created: false };
+  memoryLeads.unshift(doc);
+  if (memoryLeads.length > 5000) memoryLeads.length = 5000;
+  return { id: key, created: true, doc };
+}
+
+// ── Expo push notification (optional; tokens registered by the app) ───────────
+const memoryTokens = new Set();
+async function notifyNewLead(doc) {
+  try {
+    let tokens = [...memoryTokens];
+    if (db) tokens = (await db.collection('push_tokens').get()).docs.map(d => d.data().token);
+    tokens = [...new Set(tokens.filter(Boolean))];
+    if (!tokens.length) return;
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tokens.map(to => ({
+        to, sound: 'default', title: 'New lead',
+        body: `${doc.name || 'Facebook Lead'}${doc.mobile ? ' · ' + doc.mobile : ''}`,
+        data: { type: 'new_lead' },
+      }))),
+    });
+  } catch (e) { console.warn('push failed:', e.message); }
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -191,8 +222,8 @@ app.post('/webhook', async (req, res) => {
 
       try {
         const leadData = await fetchLeadFromFacebook(String(leadgenId));
-        const id = await persistLead(leadData);
-        console.log(`✅ Saved: ${leadData.name} (${leadData.mobile}) → id=${id}`);
+        const r = await persistLead(leadData);
+        if (r.created) notifyNewLead(r.doc);
       } catch (err) {
         console.error(`❌ Error processing lead ${leadgenId}:`, err.message);
       }
@@ -202,7 +233,7 @@ app.post('/webhook', async (req, res) => {
 
 // ── GET /leads — Mobile app polls this ───────────────────────────────────────
 app.get('/leads', async (req, res) => {
-  if (req.headers['x-app-key'] !== APP_ACCESS_KEY) {
+  if (!appAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized. Set the x-app-key header.' });
   }
 
@@ -215,12 +246,12 @@ app.get('/leads', async (req, res) => {
       const snap = await db
         .collection('facebook_leads')
         .where('received_at', '>', since.toISOString())
-        .orderBy('received_at', 'desc')
-        .limit(200)
+        .orderBy('received_at', 'asc')
+        .limit(500)
         .get();
       leads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } else {
-      leads = memoryLeads.filter(l => new Date(l.received_at) > since);
+      leads = memoryLeads.filter(l => new Date(l.received_at) > since).reverse().slice(0, 500);
     }
 
     res.json({ leads, count: leads.length, since: since.toISOString() });
@@ -231,7 +262,7 @@ app.get('/leads', async (req, res) => {
 
 // ── POST /leads/test — Send a test lead without Facebook ─────────────────────
 app.post('/leads/test', async (req, res) => {
-  if (req.headers['x-app-key'] !== APP_ACCESS_KEY) {
+  if (!appAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -248,9 +279,63 @@ app.post('/leads/test', async (req, res) => {
     created_at:  new Date().toISOString(),
   };
 
-  const id = await persistLead(lead);
-  console.log(`🧪 Test lead saved: ${lead.name} → id=${id}`);
-  res.json({ success: true, id, lead });
+  const r = await persistLead(lead);
+  if (r.created) notifyNewLead(r.doc);
+  res.json({ success: true, id: r.id, lead });
+});
+
+// ── POST /lead-from-sheet — called by the Google Apps Script ──────────────────
+function pick(row, names) {
+  const norm = k => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const keys = Object.keys(row).filter(k => row[k] !== '' && row[k] != null);
+  for (const n of names) { const k = keys.find(k => norm(k) === n); if (k) return String(row[k]).trim(); }
+  for (const n of names) {
+    const k = keys.find(k => norm(k).includes(n) && !/(form|ad|adset|campaign)name|^(form|ad|campaign)/.test(norm(k)));
+    if (k) return String(row[k]).trim();
+  }
+  return '';
+}
+app.post('/lead-from-sheet', async (req, res) => {
+  if (!safeEq(String(req.headers['x-sheet-key'] || ''), SHEET_KEY)) return res.status(401).json({ error: 'Unauthorized' });
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  let created = 0, existing = 0;
+  const known = ['id','leadid','fullname','name','formid','adid','adsetid','campaignid','adsetname','campaignname','phonenumber','phone','mobile','email','city','createdtime','created','platform','adname','formname','campaign','adset','isorganic','leadstatus'];
+  for (const row of rows) {
+    try {
+      const leadId = pick(row, ['leadid']) || pick(row, ['id']);
+      if (!leadId) continue;
+      const phone = pick(row, ['phonenumber', 'phone', 'mobile']).replace(/^p:/i, '').replace(/[^\d+]/g, '');
+      const extras = Object.keys(row).filter(k => {
+        const nk = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return !known.some(n => nk === n || nk.includes(n)) && row[k] !== '';
+      }).map(k => `${k.replace(/_/g, ' ')}: ${row[k]}`);
+      const form = pick(row, ['formname']);
+      const lead = {
+        leadgen_id: leadId.replace(/^l:/i, ''),
+        name: pick(row, ['fullname', 'name']) || 'Facebook Lead',
+        mobile: phone,
+        email: pick(row, ['email']),
+        city: pick(row, ['city']),
+        product: /term/i.test(form + pick(row, ['adname'])) ? 'Term Insurance' : (/kanyadan/i.test(form + pick(row, ['adname'])) ? 'Kanyadan' : 'General Insurance'),
+        notes: [form && `Form: ${form}`, pick(row, ['adname']) && `Ad: ${pick(row, ['adname'])}`, ...extras].filter(Boolean).join('\n'),
+        source: 'Facebook Ads', status: 'New',
+        created_at: pick(row, ['createdtime', 'created']) || new Date().toISOString(),
+      };
+      const r = await persistLead(lead);
+      if (r.created) { created++; notifyNewLead(r.doc); } else existing++;
+    } catch (e) { console.error('row failed:', e.message); return res.status(500).json({ error: e.message, created, existing }); }
+  }
+  res.json({ success: true, created, existing });
+});
+
+// ── POST /register-push — app sends its Expo push token ───────────────────────
+app.post('/register-push', async (req, res) => {
+  if (!appAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const token = String(req.body.token || '');
+  if (!/^ExponentPushToken\[.+\]$/.test(token)) return res.status(400).json({ error: 'bad token' });
+  if (db) await db.collection('push_tokens').doc(token.replace(/[^\w]/g, '_')).set({ token, at: new Date().toISOString() });
+  else memoryTokens.add(token);
+  res.json({ success: true });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
