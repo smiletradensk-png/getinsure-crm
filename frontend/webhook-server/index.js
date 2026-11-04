@@ -324,7 +324,7 @@ app.post('/lead-from-sheet', async (req, res) => {
         mobile: phone,
         email,
         city,
-        product: /term/i.test(form + ad) ? 'Term Insurance' : (/kanyadan/i.test(form + ad) ? 'Kanyadan' : 'General Insurance'),
+        product: /term/i.test(form + ad) ? 'Term Insurance' : (/kanyadan|कन्यादान/i.test(form + ad) ? 'Kanyadan' : (form || 'General Insurance')),
         notes: [
           ...answers,
           email && `Email: ${email}`,
