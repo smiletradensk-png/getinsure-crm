@@ -5,6 +5,7 @@
  * FIRST TIME: run  setup()  once (Run button). It asks for permission, then starts the 1-minute timer.
  */
 var SERVER_URL = 'https://getinsure-webhook.onrender.com/lead-from-sheet';
+var SHEET_ID = '1D116-6tuB4wGxQB5c37mZjjASR6RlmSxPi9qJv9FAzA';
 
 function setup() {
   var props = PropertiesService.getScriptProperties();
@@ -12,7 +13,7 @@ function setup() {
     throw new Error('First add SHEET_KEY: Project Settings (gear icon) > Script properties > Add property.');
   }
   // Baseline: leads already in the sheet today are NOT sent (they are old). Only new rows from now on.
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = SpreadsheetApp.openById(SHEET_ID);
   ss.getSheets().forEach(function (sh) {
     if (props.getProperty('sent_' + sh.getSheetId()) === null) {
       props.setProperty('sent_' + sh.getSheetId(), String(sh.getLastRow()));
@@ -29,7 +30,7 @@ function syncLeads() {
   try {
     var props = PropertiesService.getScriptProperties();
     var key = props.getProperty('SHEET_KEY');
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = SpreadsheetApp.openById(SHEET_ID);
     ss.getSheets().forEach(function (sh) {
       var last = sh.getLastRow();
       var propName = 'sent_' + sh.getSheetId();
