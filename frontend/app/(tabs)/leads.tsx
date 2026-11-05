@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
   Linking, Alert, Modal, Platform,
@@ -108,6 +108,9 @@ export default function LeadsScreen() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [userEmail, setUserEmail]       = useState('');
   const [interactionText, setInteractionText] = useState<Record<string, string>>({});
+  const [visibleCount, setVisibleCount] = useState(30);
+  const blobCache = useRef<Record<string, { blob: string; words: string[] }>>({});
+  const searchTimer = useRef<any>(null);
 
   const fetchLeads = async () => {
     try {
@@ -117,6 +120,12 @@ export default function LeadsScreen() {
       const data = getAllLeadsLocal(email);
       const itext = getInteractionTextByLead();
       setInteractionText(itext);
+      const cache: Record<string, { blob: string; words: string[] }> = {};
+      data.forEach((l: any) => {
+        const blob = buildBlob(l, itext[l.id] || '');
+        cache[l.id] = { blob, words: blob.split(/[\s,.:;/()\-]+/).filter(Boolean) };
+      });
+      blobCache.current = cache;
       setLeads(data);
       applyFilters(search, statusFilter, data, itext);
     } catch (e) { console.error(e); }
@@ -131,12 +140,14 @@ export default function LeadsScreen() {
     const tokens = norm(q).split(/\s+/).filter(Boolean);
     if (tokens.length) {
       f = f.filter(l => {
-        const blob = buildBlob(l, itext[l.id] || '');
-        const words = blob.split(/[\s,.:;/()\-]+/).filter(Boolean);
+        const c = blobCache.current[l.id];
+        const blob = c ? c.blob : buildBlob(l, itext[l.id] || '');
+        const words = c ? c.words : blob.split(/[\s,.:;/()\-]+/).filter(Boolean);
         return tokens.every(t => tokenMatches(t, blob, words));
       });
     }
     setFiltered(f);
+    setVisibleCount(30);
   };
 
   const toggleSel = (id: string) => {
@@ -198,7 +209,7 @@ export default function LeadsScreen() {
         <Searchbar
           placeholder="Search name, mobile, city, notes, date…"
           placeholderTextColor="#757575"
-          onChangeText={q => { setSearch(q); applyFilters(q, statusFilter); }}
+          onChangeText={q => { setSearch(q); if (searchTimer.current) clearTimeout(searchTimer.current); searchTimer.current = setTimeout(() => applyFilters(q, statusFilter), 250); }}
           value={search}
           style={styles.searchBar}
           inputStyle={{ fontSize: 14, color: '#111111' }}
@@ -255,6 +266,13 @@ export default function LeadsScreen() {
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchLeads(); }} colors={[C.navy]} />}
+        scrollEventThrottle={200}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 600) {
+            setVisibleCount(c => (c < filtered.length ? c + 30 : c));
+          }
+        }}
       >
         <View style={styles.list}>
           {filtered.length === 0 ? (
@@ -263,7 +281,7 @@ export default function LeadsScreen() {
               <Text style={styles.emptyText}>No leads found</Text>
               <Text style={styles.emptySub}>Add your first lead to get started</Text>
             </View>
-          ) : filtered.map(lead => {
+          ) : filtered.slice(0, visibleCount).map(lead => {
             const statusColor = STATUS_COLORS[lead.status] || C.textMid;
             return (
               <TouchableOpacity
