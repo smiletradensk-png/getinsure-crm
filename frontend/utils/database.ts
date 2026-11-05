@@ -217,6 +217,21 @@ export const saveInteractionLocal = async (interaction: any) => {
   }
 };
 
+export const getInteractionTextByLead = (): Record<string, string> => {
+  const out: Record<string, string> = {};
+  if (!db) return out;
+  try {
+    const rows: any[] = db.getAllSync(`SELECT * FROM interactions`);
+    rows.forEach(r => {
+      const t = [r.type, r.description, r.location, r.interaction_date, r.interaction_time,
+        r.next_appointment_date, r.next_appointment_time, r.next_appointment_type, r.next_appointment_note]
+        .filter(Boolean).join(' ');
+      out[r.lead_id] = (out[r.lead_id] ? out[r.lead_id] + ' ' : '') + t;
+    });
+  } catch (e) { console.error('Error building interaction search text:', e); }
+  return out;
+};
+
 export const getInteractionsByLeadId = (leadId: string): any[] => {
   if (!db) return [];
   try {

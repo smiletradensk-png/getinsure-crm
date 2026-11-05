@@ -785,7 +785,8 @@ export default function SettingsScreen() {
               value={contactSearch}
               onChangeText={searchContacts}
               style={styles.contactsSearchBar}
-              inputStyle={{ fontSize: 14 }}
+              inputStyle={{ fontSize: 14, color: '#111111' }}
+              placeholderTextColor="#757575"
               iconColor={C.navy}
             />
             <TouchableOpacity

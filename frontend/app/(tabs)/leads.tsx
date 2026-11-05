@@ -14,7 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase } from '../../utils/database';
+import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase, getInteractionTextByLead } from '../../utils/database';
 import { C } from '../theme';
 
 interface Lead {
@@ -45,6 +45,54 @@ function fmtPhone(phone: string) {
   return c;
 }
 
+
+const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+const norm = (t: string) => (t || '').normalize('NFC').toLowerCase();
+
+const dateWords = (iso?: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(d.getFullYear());
+  const mon = MONTHS[d.getMonth()];
+  const h24 = d.getHours();
+  const h12 = h24 % 12 || 12;
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ap = h24 >= 12 ? 'pm' : 'am';
+  return `${dd}-${mm}-${yyyy} ${dd}/${mm}/${yyyy} ${yyyy}-${mm}-${dd} ${dd} ${mon} ${mon.slice(0, 3)} ${yyyy} ${h12}:${min} ${ap} ${h12}:${min}${ap} ${String(h24).padStart(2, '0')}:${min}`;
+};
+
+const withinOneEdit = (a: string, b: string): boolean => {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+};
+
+const tokenMatches = (token: string, blob: string, words: string[]): boolean => {
+  if (blob.includes(token)) return true;
+  if (token.length < 4) return false;
+  return words.some(w => w.length >= 3 && (withinOneEdit(token, w) || (w.length > token.length && withinOneEdit(token, w.slice(0, token.length)))));
+};
+
+const buildBlob = (l: any, interactionText: string): string => norm([
+  l.name, l.mobile, l.city, l.product, l.status, l.source, l.notes,
+  l.next_followup_date, l.next_followup_time, dateWords(l.created_at), dateWords(l.next_followup_date),
+  l.product && /kanyadan/i.test(l.product) ? 'कन्यादान kanyadan' : '',
+  l.product && /term/i.test(l.product) ? 'टर्म विमा term insurance' : '',
+  l.status === 'New' ? 'नवीन' : '',
+  interactionText,
+].filter(Boolean).join(' '));
+
 export default function LeadsScreen() {
   const [leads, setLeads]               = useState<Lead[]>([]);
   const [filtered, setFiltered]         = useState<Lead[]>([]);
@@ -59,6 +107,7 @@ export default function LeadsScreen() {
   const [sendProgress, setSendProgress] = useState(0);
   const [statusFilter, setStatusFilter] = useState('All');
   const [userEmail, setUserEmail]       = useState('');
+  const [interactionText, setInteractionText] = useState<Record<string, string>>({});
 
   const fetchLeads = async () => {
     try {
@@ -66,22 +115,27 @@ export default function LeadsScreen() {
       const email = await AsyncStorage.getItem('user_email') ?? '';
       setUserEmail(email);
       const data = getAllLeadsLocal(email);
+      const itext = getInteractionTextByLead();
+      setInteractionText(itext);
       setLeads(data);
-      applyFilters(search, statusFilter, data);
+      applyFilters(search, statusFilter, data, itext);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
 
   useFocusEffect(useCallback(() => { fetchLeads(); }, []));
 
-  const applyFilters = (q: string, s: string, data: Lead[] = leads) => {
+  const applyFilters = (q: string, s: string, data: Lead[] = leads, itext: Record<string, string> = interactionText) => {
     let f = data;
     if (s !== 'All') f = f.filter(l => l.status === s);
-    if (q) f = f.filter(l =>
-      l.name.toLowerCase().includes(q.toLowerCase()) ||
-      l.mobile.includes(q) ||
-      (l.city||'').toLowerCase().includes(q.toLowerCase())
-    );
+    const tokens = norm(q).split(/\s+/).filter(Boolean);
+    if (tokens.length) {
+      f = f.filter(l => {
+        const blob = buildBlob(l, itext[l.id] || '');
+        const words = blob.split(/[\s,.:;/()\-]+/).filter(Boolean);
+        return tokens.every(t => tokenMatches(t, blob, words));
+      });
+    }
     setFiltered(f);
   };
 
@@ -142,12 +196,14 @@ export default function LeadsScreen() {
       {/* Search */}
       <View style={styles.searchWrap}>
         <Searchbar
-          placeholder="Search name, mobile, city…"
+          placeholder="Search name, mobile, city, notes, date…"
+          placeholderTextColor="#757575"
           onChangeText={q => { setSearch(q); applyFilters(q, statusFilter); }}
           value={search}
           style={styles.searchBar}
-          inputStyle={{ fontSize: 14 }}
+          inputStyle={{ fontSize: 14, color: '#111111' }}
           iconColor={C.navy}
+          selectionColor={C.navy}
         />
       </View>
 
@@ -327,7 +383,7 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 },
 
   searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: C.white },
-  searchBar: { elevation: 0, backgroundColor: C.bg, borderRadius: 12 },
+  searchBar: { elevation: 0, backgroundColor: '#F1F3F8', borderRadius: 12 },
 
   filterWrap: { backgroundColor: C.white, paddingBottom: 10 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
