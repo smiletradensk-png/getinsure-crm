@@ -68,7 +68,7 @@ export const syncFacebookLeads = async (): Promise<{ synced: number; error?: str
           const res = await saveLeadLocal({
             id: localId,
             name: lead.name || 'Facebook Lead',
-            mobile: lead.mobile || lead.phone || '',
+            mobile: (() => { const d = String(lead.mobile || lead.phone || '').replace(/\D/g, ''); return d.length > 10 ? d.slice(-10) : d; })(),
             product: lead.product || 'General Insurance',
             status: 'New',
             source: 'Facebook Ads',

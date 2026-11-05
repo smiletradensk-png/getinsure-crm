@@ -106,7 +106,10 @@ export default function AddLeadScreen() {
       const data = getLeadByIdLocal(id as string);
       if (data) {
         setName(data.name || '');
-        setMobile(data.mobile || '');
+        {
+          const digits = String(data.mobile || '').replace(/\D/g, '');
+          setMobile(digits.length > 10 ? digits.slice(-10) : digits);
+        }
         setProduct(data.product || 'Whole Life');
         setStatus(data.status || 'New');
         setSource(data.source || 'Walk-in');
