@@ -82,6 +82,13 @@ export default function LeadDetailScreen() {
     } catch { return dateStr; }
   };
 
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
   const handleCall = (mobile: string) => Linking.openURL(`tel:${mobile}`);
 
   const formatPhoneForWhatsApp = (phone: string) => {
@@ -245,6 +252,15 @@ export default function LeadDetailScreen() {
                   <Chip style={styles.chip}>{lead.product}</Chip>
                   {lead.source ? <Chip style={styles.chip}>{lead.source}</Chip> : null}
                 </View>
+
+                {lead.created_at ? (
+                  <View style={styles.infoRow}>
+                    <MaterialCommunityIcons name="clock-outline" size={20} color="#757575" />
+                    <Text variant="bodyMedium" style={styles.infoText}>
+                      Lead received: {formatDateTime(lead.created_at)}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {lead.city ? (
                   <View style={styles.infoRow}>

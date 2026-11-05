@@ -233,6 +233,11 @@ export default function LeadsScreen() {
                       <Text style={styles.name} numberOfLines={1}>{lead.name}</Text>
                       <Text style={styles.mobile}>{lead.mobile}</Text>
                       {lead.city ? <Text style={styles.city}>{lead.city}</Text> : null}
+                      {lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? (
+                        <Text style={styles.city}>
+                          {new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </Text>
+                      ) : null}
                     </View>
                     {!selectionMode && (
                       <TouchableOpacity onPress={() => handleDelete(lead.id)} style={styles.deleteBtn} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
