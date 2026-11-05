@@ -59,6 +59,7 @@ app.use(cors({ origin: '*' }));
 // Capture raw body for signature verification BEFORE JSON parsing
 app.use(
   express.json({
+    limit: '8mb',
     verify: (req, _res, buf) => { req.rawBody = buf; },
   })
 );
@@ -344,6 +345,56 @@ app.post('/lead-from-sheet', async (req, res) => {
 });
 
 // ── POST /register-push — app sends its Expo push token ───────────────────────
+
+// ── Cloud backup of the user's own CRM data (leads + interactions) ───────────
+// Stored per user (hash of email) in buckets, so a new phone can restore everything.
+const bkKey = (email) => crypto.createHash('sha256').update(String(email || '').trim().toLowerCase()).digest('hex');
+
+app.post('/backup/put', async (req, res) => {
+  if (!appAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
+  if (!db) return res.status(503).json({ error: 'storage not configured' });
+  const { email, buckets } = req.body || {};
+  if (!email || !buckets || typeof buckets !== 'object') return res.status(400).json({ error: 'bad request' });
+  try {
+    const col = db.collection('crm_backups').doc(bkKey(email)).collection('buckets');
+    const ids = Object.keys(buckets).filter((k) => /^\d{1,3}$/.test(k));
+    const batch = db.batch();
+    ids.forEach((k) => {
+      const b = buckets[k] || {};
+      batch.set(col.doc(k), {
+        leads: JSON.stringify(Array.isArray(b.leads) ? b.leads : []),
+        interactions: JSON.stringify(Array.isArray(b.interactions) ? b.interactions : []),
+        updated_at: new Date().toISOString(),
+      });
+    });
+    await batch.commit();
+    res.json({ ok: true, written: ids.length });
+  } catch (e) {
+    console.error('backup put failed', e.message);
+    res.status(500).json({ error: 'backup failed' });
+  }
+});
+
+app.get('/backup/get', async (req, res) => {
+  if (!appAuthorized(req)) return res.status(401).json({ error: 'unauthorized' });
+  if (!db) return res.status(503).json({ error: 'storage not configured' });
+  const email = String(req.query.email || '');
+  if (!email) return res.status(400).json({ error: 'bad request' });
+  try {
+    const snap = await db.collection('crm_backups').doc(bkKey(email)).collection('buckets').get();
+    const leads = []; const interactions = [];
+    snap.forEach((d) => {
+      const v = d.data();
+      try { leads.push(...JSON.parse(v.leads || '[]')); } catch {}
+      try { interactions.push(...JSON.parse(v.interactions || '[]')); } catch {}
+    });
+    res.json({ leads, interactions });
+  } catch (e) {
+    console.error('backup get failed', e.message);
+    res.status(500).json({ error: 'restore failed' });
+  }
+});
+
 app.post('/register-push', async (req, res) => {
   if (!appAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
   const token = String(req.body.token || '');

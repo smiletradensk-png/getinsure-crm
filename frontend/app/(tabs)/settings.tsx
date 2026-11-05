@@ -4,6 +4,7 @@ import {
   TextInput as RNTextInput, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
 import { Text, Card, Button, Divider, Searchbar } from 'react-native-paper';
+import { backupToCloud, restoreFromCloud, getLastCloudBackup } from '../../utils/cloudBackup';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -83,6 +84,8 @@ export default function SettingsScreen() {
   // Facebook live-leads webhook
   const [webhookUrl, setWebhookUrl]         = useState('');
   const [webhookKey, setWebhookKey]         = useState('');
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [lastCloudBk, setLastCloudBk] = useState('');
   const [fbSyncing, setFbSyncing]           = useState(false);
   const [lastFbSync, setLastFbSync]         = useState('');
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
@@ -114,6 +117,8 @@ export default function SettingsScreen() {
       setWebhookKey(appKey || '');
       const last = await getLastSyncTime();
       if (last !== '1970-01-01T00:00:00.000Z') setLastFbSync(last);
+
+      setLastCloudBk(await getLastCloudBackup());
 
       const dirUri = await getBackupFolderUri();
       setBackupFolderSet(!!dirUri);
@@ -313,6 +318,36 @@ export default function SettingsScreen() {
         ? `✅ ${result.synced} new lead${result.synced !== 1 ? 's' : ''} from Facebook!`
         : 'No new leads since last sync.');
     }
+  };
+
+  const handleCloudBackupNow = async () => {
+    setCloudBusy(true);
+    const r = await backupToCloud();
+    setCloudBusy(false);
+    if (r.ok) {
+      setLastCloudBk(await getLastCloudBackup());
+      Alert.alert('Cloud Backup', r.written ? 'Backup completed.' : 'Everything is already backed up.');
+    } else {
+      Alert.alert('Cloud Backup Failed', r.error === 'not_configured'
+        ? 'Please save the server URL and App Key under Facebook Lead Ads → Configure first.'
+        : r.error === 'timeout'
+          ? 'The free server is waking up (can take about a minute). Please try again in a minute.'
+          : String(r.error));
+    }
+  };
+
+  const handleCloudRestore = async () => {
+    Alert.alert('Restore from Cloud', 'This brings back leads and interactions from your cloud backup. Newer changes on this phone are kept.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Restore', onPress: async () => {
+        setCloudBusy(true);
+        const r = await restoreFromCloud();
+        setCloudBusy(false);
+        Alert.alert(r.ok ? 'Restore Complete' : 'Restore Failed', r.ok
+          ? `${r.leads} leads and ${r.interactions} interactions restored.`
+          : (r.error === 'not_configured' ? 'Please save the server URL and App Key first.' : String(r.error)));
+      } },
+    ]);
   };
 
   const saveWebhookConfig = async () => {
@@ -733,6 +768,32 @@ export default function SettingsScreen() {
                   </Button>
                 </View>
               )}
+            </Card.Content>
+          </Card>
+
+          {/* ── Cloud Backup ── */}
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="cloud-check-outline" size={32} color="#2196F3" />
+                <Text style={styles.cardTitle}>Cloud Backup</Text>
+              </View>
+              <Text style={styles.cardDescription}>
+                Leads and interactions are backed up automatically. On a new phone, sign in with the same email and restore them here.
+              </Text>
+              <Text style={styles.cardDescription}>
+                {lastCloudBk ? `Last backup: ${new Date(lastCloudBk).toLocaleString('en-IN')}` : 'No cloud backup yet'}
+              </Text>
+              <View style={styles.exportButtons}>
+                <Button mode="contained" onPress={handleCloudBackupNow} icon="cloud-upload" loading={cloudBusy}
+                  disabled={cloudBusy} buttonColor="#2196F3" style={styles.halfButton}>
+                  Backup Now
+                </Button>
+                <Button mode="outlined" onPress={handleCloudRestore} icon="cloud-download" disabled={cloudBusy}
+                  textColor="#2196F3" style={styles.halfButton}>
+                  Restore
+                </Button>
+              </View>
             </Card.Content>
           </Card>
 

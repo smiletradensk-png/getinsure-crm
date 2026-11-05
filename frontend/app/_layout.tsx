@@ -7,6 +7,8 @@ import { theme, C } from './theme';
 import { requestNotificationPermissions } from '../utils/notifications';
 import { initializeDatabase, getAllLeadsLocal } from '../utils/database';
 import { syncFacebookLeads } from '../utils/facebookSync';
+import { backupToCloud, fetchCloudBackup, restoreFromCloud } from '../utils/cloudBackup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppSettingsProvider, useAppSettings } from '../context/AppSettingsContext';
 import {
   checkForBackupFile, restoreFromBackup, performAutoBackup,
@@ -125,10 +127,39 @@ export default function RootLayout() {
   useEffect(() => {
     // Live Facebook leads: catch up on open, on returning to the app, and every minute while open
     const run = () => { syncFacebookLeads().catch(() => {}); };
+    const backup = () => { backupToCloud().catch(() => {}); };
+    // New phone: if this account has no leads here but has a cloud backup, offer to restore it
+    const checkRestore = async () => {
+      try {
+        const email = ((await AsyncStorage.getItem('user_email')) ?? '').toLowerCase();
+        if (!email) return;
+        await initializeDatabase();
+        if (getAllLeadsLocal(email).length > 0) return;
+        const cloud = await fetchCloudBackup();
+        if (!cloud.ok || !cloud.leads || cloud.leads.length === 0) return;
+        Alert.alert(
+          'Restore your data?',
+          `A cloud backup was found: ${cloud.leads.length} leads and ${(cloud.interactions || []).length} interactions. Restore them to this phone?`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Restore', onPress: async () => {
+              const r = await restoreFromCloud(cloud as any, true);
+              Alert.alert(r.ok ? 'Restored' : 'Restore failed', r.ok ? `${r.leads} leads and ${r.interactions} interactions restored. Open the Leads tab to see them.` : String(r.error));
+            } },
+          ],
+        );
+      } catch {}
+    };
     const t0 = setTimeout(run, 3000);
+    const t1 = setTimeout(checkRestore, 2000);
+    const t2 = setTimeout(backup, 20000);
     const iv = setInterval(run, 60000);
-    const sub = AppState.addEventListener('change', st => { if (st === 'active') run(); });
-    return () => { clearTimeout(t0); clearInterval(iv); sub.remove(); };
+    const iv2 = setInterval(backup, 5 * 60000);
+    const sub = AppState.addEventListener('change', st => {
+      if (st === 'active') run();
+      if (st === 'background') backup();
+    });
+    return () => { clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); clearInterval(iv); clearInterval(iv2); sub.remove(); };
   }, []);
 
   useEffect(() => {

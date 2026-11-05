@@ -232,6 +232,12 @@ export const getInteractionTextByLead = (): Record<string, string> => {
   return out;
 };
 
+export const getAllInteractionsLocal = (): any[] => {
+  if (!db) return [];
+  try { return db.getAllSync(`SELECT * FROM interactions`); }
+  catch (error) { console.error('Error getting all interactions:', error); return []; }
+};
+
 export const getInteractionsByLeadId = (leadId: string): any[] => {
   if (!db) return [];
   try {
