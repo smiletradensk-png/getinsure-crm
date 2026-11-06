@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, initializeDatabase } from '../../utils/database';
+import CopyText from '../../components/CopyText';
 import { C } from '../theme';
 
 interface Lead {
@@ -130,8 +131,8 @@ export default function FollowupsScreen() {
                     <Text style={[styles.avatarText, { color: active.dot }]}>{getInitials(lead.name)}</Text>
                   </View>
                   <View style={styles.info}>
-                    <Text selectable style={styles.name}>{lead.name}</Text>
-                    <Text selectable style={styles.mobile}>{lead.mobile}</Text>
+                    <CopyText style={styles.name}>{lead.name}</CopyText>
+                    <CopyText style={styles.mobile}>{lead.mobile}</CopyText>
                   </View>
                   <View style={styles.tags}>
                     <View style={[styles.badge, { backgroundColor: active.dot }]}>

@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import CopyText from '../../components/CopyText';
 import { C } from '../theme';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -885,7 +886,7 @@ export default function SettingsScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.contactName} numberOfLines={1}>{item.name || 'Unknown'}</Text>
-                    <Text style={styles.contactPhone}>{phone}</Text>
+                    <CopyText style={styles.contactPhone}>{phone}</CopyText>
                   </View>
                   {isSelected
                     ? <MaterialCommunityIcons name="check-circle" size={22} color={C.navy} />

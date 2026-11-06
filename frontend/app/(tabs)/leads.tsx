@@ -9,12 +9,14 @@ import {
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { takePendingStatus } from '../../utils/navFilter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase, getInteractionTextByLead } from '../../utils/database';
+import CopyText from '../../components/CopyText';
 import { C } from '../theme';
 
 interface Lead {
@@ -117,13 +119,13 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
                       </View>
                     )}
                     <View style={styles.info}>
-                      <Text selectable style={styles.name} numberOfLines={1}>{lead.name}</Text>
-                      <Text selectable style={styles.mobile}>{lead.mobile}</Text>
-                      {lead.city ? <Text selectable style={styles.city}>{lead.city}</Text> : null}
+                      <CopyText style={styles.name} numberOfLines={1}>{lead.name}</CopyText>
+                      <CopyText style={styles.mobile}>{lead.mobile}</CopyText>
+                      {lead.city ? <CopyText style={styles.city}>{lead.city}</CopyText> : null}
                       {lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? (
-                        <Text selectable style={styles.city}>
+                        <CopyText style={styles.city}>
                           {new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                        </Text>
+                        </CopyText>
                       ) : null}
                     </View>
                     {!selectionMode && (
@@ -190,8 +192,6 @@ export default function LeadsScreen() {
   const blobCache = useRef<Record<string, { blob: string; words: string[] }>>({});
   const searchTimer = useRef<any>(null);
 
-  const { status: statusParam } = useLocalSearchParams<{ status?: string }>();
-
   const fetchLeads = async (statusOverride?: string) => {
     try {
       await initializeDatabase();
@@ -208,16 +208,16 @@ export default function LeadsScreen() {
 
   useFocusEffect(useCallback(() => {
     const task = InteractionManager.runAfterInteractions(() => {
-      if (statusParam) {
-        setStatusFilter(statusParam);
-        fetchLeads(statusParam);
-        router.setParams({ status: undefined } as any);
+      const pending = takePendingStatus();
+      if (pending) {
+        setStatusFilter(pending);
+        fetchLeads(pending);
       } else {
         fetchLeads();
       }
     });
     return () => task.cancel();
-  }, [statusParam]));
+  }, []));
 
   const applyFilters = (q: string, s: string, data: Lead[] = leads, itextArg?: Record<string, string>) => {
     let f = data;

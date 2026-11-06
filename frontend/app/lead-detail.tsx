@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import CopyText from '../components/CopyText';
 import { Calendar } from 'react-native-calendars';
 import * as Location from 'expo-location';
 import {
@@ -255,8 +256,8 @@ export default function LeadDetailScreen() {
             {/* Lead Info Card */}
             <Card style={styles.card}>
               <Card.Content>
-                <Text selectable variant="headlineSmall" style={styles.leadName}>{lead.name}</Text>
-                <Text selectable variant="bodyLarge" style={styles.leadMobile}>{lead.mobile}</Text>
+                <CopyText variant="headlineSmall" style={styles.leadName}>{lead.name}</CopyText>
+                <CopyText variant="bodyLarge" style={styles.leadMobile}>{lead.mobile}</CopyText>
 
                 <View style={styles.chipContainer}>
                   <Chip style={styles.chip}>{lead.product}</Chip>
@@ -287,32 +288,32 @@ export default function LeadDetailScreen() {
                 {lead.created_at ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="clock-outline" size={20} color="#757575" />
-                    <Text selectable variant="bodyMedium" style={styles.infoText}>
+                    <CopyText variant="bodyMedium" style={styles.infoText}>
                       Lead received: {formatDateTime(lead.created_at)}
-                    </Text>
+                    </CopyText>
                   </View>
                 ) : null}
 
                 {lead.city ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="map-marker" size={20} color="#757575" />
-                    <Text selectable variant="bodyMedium" style={styles.infoText}>{lead.city}</Text>
+                    <CopyText variant="bodyMedium" style={styles.infoText}>{lead.city}</CopyText>
                   </View>
                 ) : null}
 
                 {lead.next_followup_date ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="calendar-clock" size={20} color="#FF9800" />
-                    <Text selectable variant="bodyMedium" style={[styles.infoText, { color: '#FF9800', fontWeight: 'bold' }]}>
+                    <CopyText variant="bodyMedium" style={[styles.infoText, { color: '#FF9800', fontWeight: 'bold' }]}>
                       Next: {formatDate(lead.next_followup_date)} {lead.next_followup_time || ''}
-                    </Text>
+                    </CopyText>
                   </View>
                 ) : null}
 
                 {lead.notes ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="note-text" size={20} color="#757575" />
-                    <Text selectable variant="bodyMedium" style={styles.infoText}>{lead.notes}</Text>
+                    <CopyText variant="bodyMedium" style={styles.infoText}>{lead.notes}</CopyText>
                   </View>
                 ) : null}
 
@@ -363,7 +364,7 @@ export default function LeadDetailScreen() {
                     </View>
 
                     {tagLocation && currentLocation ? (
-                      <Text selectable style={styles.locationText}>📍 {currentLocation}</Text>
+                      <CopyText style={styles.locationText}>📍 {currentLocation}</CopyText>
                     ) : null}
 
                     {/* Interaction Type */}
@@ -477,9 +478,9 @@ export default function LeadDetailScreen() {
                               <IconButton icon="delete" iconColor="#F44336" size={18} onPress={() => handleDeleteInteraction(interaction.id)} />
                             </View>
                           </View>
-                          <Text selectable style={{ color: '#424242', lineHeight: 20 }}>{interaction.description}</Text>
+                          <CopyText style={{ color: '#424242', lineHeight: 20 }}>{interaction.description}</CopyText>
                           {interaction.location ? (
-                            <Text selectable style={{ color: '#757575', fontSize: 12, marginTop: 4 }}>📍 {interaction.location}</Text>
+                            <CopyText style={{ color: '#757575', fontSize: 12, marginTop: 4 }}>📍 {interaction.location}</CopyText>
                           ) : null}
                           {interaction.next_appointment_date ? (
                             <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>

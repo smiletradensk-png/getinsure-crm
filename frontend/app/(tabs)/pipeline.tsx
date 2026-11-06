@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, initializeDatabase } from '../../utils/database';
+import CopyText from '../../components/CopyText';
 import { C } from '../theme';
 
 interface Lead { id: string; name: string; mobile: string; status: string; product: string; }
@@ -111,8 +112,8 @@ export default function PipelineScreen() {
                           <Text style={[styles.leadAvatarText, { color: stage.color }]}>{getInitials(lead.name)}</Text>
                         </View>
                         <View style={styles.leadInfo}>
-                          <Text style={styles.leadName} numberOfLines={1}>{lead.name}</Text>
-                          <Text style={styles.leadSub}>{lead.product} · {lead.mobile}</Text>
+                          <CopyText style={styles.leadName} numberOfLines={1}>{lead.name}</CopyText>
+                          <CopyText style={styles.leadSub} copyValue={lead.mobile}>{lead.product} · {lead.mobile}</CopyText>
                         </View>
                         <MaterialCommunityIcons name="chevron-right" size={20} color={stage.color} />
                       </TouchableOpacity>
