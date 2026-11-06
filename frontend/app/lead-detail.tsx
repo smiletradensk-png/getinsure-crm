@@ -38,6 +38,7 @@ export default function LeadDetailScreen() {
   const { id } = useLocalSearchParams();
   const [statusList, setStatusList] = useState<string[]>(DEFAULT_STATUSES);
   React.useEffect(() => { loadDropdowns().then(d => { if (d?.statuses?.length) setStatusList(d.statuses); }).catch(() => {}); }, []);
+  const [showStatusList, setShowStatusList] = useState(false);
   const [lead, setLead] = useState<any>(null);
   const [interactions, setInteractions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,14 +70,12 @@ export default function LeadDetailScreen() {
     await initializeDatabase();
     const leadData = getLeadByIdLocal(id as string);
     setLead(leadData);
-    const interactionData = getInteractionsByLeadId(id as string);
-    setInteractions(interactionData);
     setLoading(false);
+    setTimeout(() => setInteractions(getInteractionsByLeadId(id as string)), 0);
   };
 
   useFocusEffect(useCallback(() => {
-    const task = InteractionManager.runAfterInteractions(() => { loadData(); });
-    return () => task.cancel();
+    loadData();
   }, []));
 
   const formatDate = (dateStr: string) => {
@@ -271,32 +270,36 @@ export default function LeadDetailScreen() {
                   {lead.source ? <Chip style={styles.chip}>{lead.source}</Chip> : null}
                 </View>
 
-                <Text style={{ color: '#757575', fontSize: 12, marginTop: 12, marginBottom: 6, fontWeight: '600' }}>STATUS (tap to change)</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                  {statusList.map(st => {
-                    const active = lead.status === st;
-                    const col = getStatusColor(st);
-                    return (
-                      <TouchableOpacity
-                        key={st}
-                        onPress={() => handleStatusChange(st)}
-                        activeOpacity={0.7}
-                        style={{
-                          width: '31.5%', paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12,
-                          alignItems: 'center', justifyContent: 'center',
-                          backgroundColor: active ? col : col + '1A',
-                          borderWidth: 1.5, borderColor: active ? col : col + '55',
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name={(active ? 'check-circle' : (STATUS_ICONS[st] || 'circle-outline')) as any}
-                          size={20} color={active ? '#FFFFFF' : col}
-                        />
-                        <Text numberOfLines={1} style={{ color: active ? '#FFFFFF' : col, fontWeight: '700', fontSize: 12, marginTop: 3 }}>{st}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <Text style={{ color: '#757575', fontSize: 12, marginTop: 12, marginBottom: 6, fontWeight: '600' }}>STATUS</Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setShowStatusList(v => !v)}
+                  style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: getStatusColor(lead.status), backgroundColor: getStatusColor(lead.status) + '1A', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                >
+                  <MaterialCommunityIcons name={(STATUS_ICONS[lead.status] || 'circle-outline') as any} size={20} color={getStatusColor(lead.status)} />
+                  <Text style={{ flex: 1, marginLeft: 10, fontWeight: '700', fontSize: 15, color: getStatusColor(lead.status) }}>{lead.status}</Text>
+                  <MaterialCommunityIcons name={showStatusList ? 'chevron-up' : 'chevron-down'} size={24} color={getStatusColor(lead.status)} />
+                </TouchableOpacity>
+                {showStatusList ? (
+                  <View style={{ borderWidth: 1, borderColor: '#D6DAE3', borderRadius: 12, marginTop: 6, backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
+                    {statusList.map(st => {
+                      const active = lead.status === st;
+                      const col = getStatusColor(st);
+                      return (
+                        <TouchableOpacity
+                          key={st}
+                          onPress={() => { handleStatusChange(st); setShowStatusList(false); }}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, backgroundColor: active ? col + '1A' : '#FFFFFF', borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' }}
+                        >
+                          <MaterialCommunityIcons name={(STATUS_ICONS[st] || 'circle-outline') as any} size={20} color={col} />
+                          <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, fontWeight: active ? '700' : '500', color: '#212121' }}>{st}</Text>
+                          {active ? <MaterialCommunityIcons name="check" size={20} color={col} /> : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                <View style={{ height: 10 }} />
 
                 {lead.created_at ? (
                   <View style={styles.infoRow}>

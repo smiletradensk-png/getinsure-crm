@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, initializeDatabase } from '../../utils/database';
 import CopyText from '../../components/CopyText';
 import { C } from '../theme';
+import { takePendingFollowup } from '../../utils/navFilter';
 
 interface Lead {
   id: string; name: string; mobile: string; product: string;
@@ -45,11 +46,11 @@ export default function FollowupsScreen() {
       await initializeDatabase();
       const email = await AsyncStorage.getItem('user_email') ?? '';
       const all = getAllLeadsLocal(email);
-      const today = new Date().toISOString().split('T')[0];
+      const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
       const res = all.filter((l: Lead) => {
         if (!l.next_followup_date) return false;
-        const fd = l.next_followup_date;
-        if (f === 'today')    return fd === today;
+        const fd = String(l.next_followup_date).slice(0,10);
+        if (f === 'today')    return fd === today && !['Closed','Not Interested'].includes(l.status);
         if (f === 'overdue')  return fd < today && !['Closed','Not Interested'].includes(l.status);
         if (f === 'upcoming') return fd > today;
         return false;
@@ -60,6 +61,8 @@ export default function FollowupsScreen() {
   };
 
   useFocusEffect(useCallback(() => {
+    const pf = takePendingFollowup() as Filter | null;
+    if (pf && pf !== filter) { setFilter(pf); return; }
     const task = InteractionManager.runAfterInteractions(() => { fetchFollowups(filter); });
     return () => task.cancel();
   }, [filter]));
@@ -133,8 +136,8 @@ export default function FollowupsScreen() {
                     <Text style={[styles.avatarText, { color: active.dot }]}>{getInitials(lead.name)}</Text>
                   </View>
                   <View style={styles.info}>
-                    <CopyText style={styles.name}>{lead.name}</CopyText>
-                    <CopyText style={styles.mobile}>{lead.mobile}</CopyText>
+                    <CopyText style={styles.name} onPress={() => router.push({ pathname:'/lead-detail', params:{ id: lead.id } })}>{lead.name}</CopyText>
+                    <CopyText style={styles.mobile} onPress={() => router.push({ pathname:'/lead-detail', params:{ id: lead.id } })}>{lead.mobile}</CopyText>
                   </View>
                   <View style={styles.tags}>
                     <View style={[styles.badge, { backgroundColor: active.dot }]}>

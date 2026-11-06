@@ -99,6 +99,7 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
   lead: any; selectionMode: boolean; isSelected: boolean; onToggle: (id: string) => void; onDelete: (id: string) => void;
 }) {
   const statusColor = STATUS_COLORS[lead.status] || C.textMid;
+  const openCard = () => selectionMode ? onToggle(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } });
   return (
               <TouchableOpacity
                 style={styles.card}
@@ -119,11 +120,11 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
                       </View>
                     )}
                     <View style={styles.info}>
-                      <CopyText style={styles.name} numberOfLines={1}>{lead.name}</CopyText>
-                      <CopyText style={styles.mobile}>{lead.mobile}</CopyText>
-                      {lead.city ? <CopyText style={styles.city}>{lead.city}</CopyText> : null}
+                      <CopyText onPress={openCard} style={styles.name} numberOfLines={1}>{lead.name}</CopyText>
+                      <CopyText onPress={openCard} style={styles.mobile}>{lead.mobile}</CopyText>
+                      {lead.city ? <CopyText onPress={openCard} style={styles.city}>{lead.city}</CopyText> : null}
                       {lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? (
-                        <CopyText style={styles.city}>
+                        <CopyText onPress={openCard} style={styles.city}>
                           {new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                         </CopyText>
                       ) : null}

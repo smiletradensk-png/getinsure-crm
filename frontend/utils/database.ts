@@ -283,13 +283,13 @@ export const getLocalStats = (userEmail = '') => {
   if (!db) return empty;
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const _d = new Date(); const today = `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
     const emailFilter = userEmail ? 'AND user_email = ?' : '';
     const emailParam  = userEmail ? [userEmail] : [];
 
     const total      = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE 1=1 ${emailFilter}`, emailParam);
-    const todayF     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ? ${emailFilter}`, [today, ...emailParam]);
-    const overdue    = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date != '' AND next_followup_date IS NOT NULL AND next_followup_date < ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
+    const todayF     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE substr(next_followup_date,1,10) = ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
+    const overdue    = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' AND next_followup_date < ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
     const interested = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Interested' ${emailFilter}`, emailParam);
     const closed     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Closed' ${emailFilter}`, emailParam);
     const newLeads   = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'New' ${emailFilter}`, emailParam);

@@ -7,7 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLocalStats, initializeDatabase } from '../../utils/database';
-import { setPendingStatus } from '../../utils/navFilter';
+import { setPendingStatus, setPendingFollowup } from '../../utils/navFilter';
 import { C } from '../theme';
 
 interface Stats {
@@ -144,7 +144,7 @@ export default function DashboardScreen() {
         <View style={styles.followupRow}>
           <TouchableOpacity
             style={styles.followupCard}
-            onPress={() => router.push('/(tabs)/followups' as any)}
+            onPress={() => { setPendingFollowup('today'); router.push('/(tabs)/followups' as any); }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="calendar-today" size={20} color="#E65100" />
@@ -153,7 +153,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.followupCard, { borderColor: '#FECACA' }]}
-            onPress={() => router.push('/(tabs)/followups' as any)}
+            onPress={() => { setPendingFollowup('overdue'); router.push('/(tabs)/followups' as any); }}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#C62828" />
