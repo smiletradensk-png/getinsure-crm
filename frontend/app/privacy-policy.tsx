@@ -70,8 +70,8 @@ export default function PrivacyPolicyScreen() {
 
         <Section title="1. Who We Are">
           <Para>
-            GETINSURE CRM ("the App", "we", "us") is a sales CRM application designed exclusively
-            for independent insurance agents to manage leads, follow-ups, and the sales pipeline.
+            GETINSURE CRM ("the App", "we", "us") is a sales CRM application designed for
+            sales professionals to manage leads, follow-ups, and the sales pipeline.
             The App is developed and published by GETINSURE.
           </Para>
         </Section>
@@ -200,7 +200,7 @@ export default function PrivacyPolicyScreen() {
 
         <Section title="11. Children's Privacy">
           <Para>
-            This App is intended for use by professional insurance agents and is not directed at
+            This App is intended for use by sales professionals and is not directed at
             children under the age of 13. We do not knowingly collect personal information from
             children. If you believe a child has used this App, please uninstall it and clear the
             App's storage data.
@@ -227,7 +227,7 @@ export default function PrivacyPolicyScreen() {
           </View>
           <View style={styles.contactBox}>
             <MaterialCommunityIcons name="shield-account-outline" size={18} color={C.navy} />
-            <Text style={styles.contactText}>GETINSURE CRM — Insurance Sales Management App</Text>
+            <Text style={styles.contactText}>GETINSURE CRM — Professional Sales CRM App</Text>
           </View>
         </Section>
 

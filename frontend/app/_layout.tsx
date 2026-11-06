@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, Text as RNText } from 'react-native';
 import { Stack } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -38,6 +38,12 @@ function AppContent() {
     () => ({ ...theme, fonts: scaleFonts(theme.fonts as Record<string, any>, fontScale) }),
     [fontScale],
   );
+
+  // Patch RN Text defaultProps so bare <Text> without explicit fontSize also scales
+  useEffect(() => {
+    const base = Math.round(14 * fontScale);
+    (RNText as any).defaultProps = { ...((RNText as any).defaultProps || {}), style: { fontSize: base } };
+  }, [fontScale]);
 
   return (
     <SafeAreaProvider>

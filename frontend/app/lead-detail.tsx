@@ -16,6 +16,7 @@ import {
   getLeadByIdLocal, saveLeadLocal, initializeDatabase,
   saveInteractionLocal, getInteractionsByLeadId, deleteInteractionLocal,
 } from '../utils/database';
+import { C } from './theme';
 
 const INTERACTION_TYPES = ['Call', 'Meeting', 'Online', 'Email', 'Message', 'Other'];
 
@@ -163,7 +164,7 @@ export default function LeadDetailScreen() {
           next_followup_time: nextAppointmentTime,
           next_followup_type: nextAppointmentType,
           updated_at: new Date().toISOString(),
-        });
+        }, lead.user_email || '');
       }
 
       // Send WhatsApp if checked
@@ -218,7 +219,7 @@ export default function LeadDetailScreen() {
     }
   };
 
-  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#009688" /></View>;
+  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={C.navy} /></View>;
 
   if (!lead) return (
     <View style={styles.loadingContainer}>
@@ -304,7 +305,7 @@ export default function LeadDetailScreen() {
                 <Text variant="titleLarge" style={styles.sectionTitle}>Add Interaction</Text>
 
                 {!showAddInteraction ? (
-                  <Button mode="contained" onPress={() => setShowAddInteraction(true)} icon="plus" buttonColor="#009688">
+                  <Button mode="contained" onPress={() => setShowAddInteraction(true)} icon="plus" buttonColor={C.navy}>
                     Add New Interaction
                   </Button>
                 ) : (
@@ -326,7 +327,7 @@ export default function LeadDetailScreen() {
                         <Text style={styles.dateTimeText}>{interactionTime}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.locationCheckbox} onPress={() => { setTagLocation(!tagLocation); if (!tagLocation) getCurrentLocation(); }}>
-                        <Checkbox status={tagLocation ? 'checked' : 'unchecked'} color="#009688" />
+                        <Checkbox status={tagLocation ? 'checked' : 'unchecked'} color={C.navy} />
                         <Text style={{ fontSize: 13 }}>Tag Location</Text>
                       </TouchableOpacity>
                     </View>
@@ -341,8 +342,8 @@ export default function LeadDetailScreen() {
                         <View style={styles.radioRow}>
                           {INTERACTION_TYPES.map((type) => (
                             <TouchableOpacity key={type} style={styles.radioItem} onPress={() => setInteractionType(type)}>
-                              <RadioButton value={type} color="#009688" />
-                              <Text style={[styles.radioLabel, interactionType === type && { color: '#009688', fontWeight: 'bold' }]}>{type}</Text>
+                              <RadioButton value={type} color={C.navy} />
+                              <Text style={[styles.radioLabel, interactionType === type && { color: C.navy, fontWeight: 'bold' }]}>{type}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -358,7 +359,7 @@ export default function LeadDetailScreen() {
                       numberOfLines={3}
                       style={styles.noteInput}
                       outlineColor="#E0E0E0"
-                      activeOutlineColor="#009688"
+                      activeOutlineColor={C.navy}
                     />
 
                     {/* Next Appointment */}
@@ -379,8 +380,8 @@ export default function LeadDetailScreen() {
                           <View style={styles.radioRow}>
                             {INTERACTION_TYPES.map((type) => (
                               <TouchableOpacity key={`next-${type}`} style={styles.radioItem} onPress={() => setNextAppointmentType(type)}>
-                                <RadioButton value={type} color="#009688" />
-                                <Text style={[styles.radioLabel, nextAppointmentType === type && { color: '#009688', fontWeight: 'bold' }]}>{type}</Text>
+                                <RadioButton value={type} color={C.navy} />
+                                <Text style={[styles.radioLabel, nextAppointmentType === type && { color: C.navy, fontWeight: 'bold' }]}>{type}</Text>
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -396,7 +397,7 @@ export default function LeadDetailScreen() {
                         numberOfLines={2}
                         style={styles.noteInput}
                         outlineColor="#E0E0E0"
-                        activeOutlineColor="#009688"
+                        activeOutlineColor={C.navy}
                       />
                     </View>
 
@@ -480,8 +481,8 @@ export default function LeadDetailScreen() {
                 if (showDatePicker) { setInteractionDate(day.dateString); setShowDatePicker(false); }
                 else { setNextAppointmentDate(day.dateString); setShowNextDatePicker(false); }
               }}
-              markedDates={{ [showDatePicker ? interactionDate : nextAppointmentDate]: { selected: true, selectedColor: '#009688' } }}
-              theme={{ selectedDayBackgroundColor: '#009688', todayTextColor: '#009688', arrowColor: '#009688' }}
+              markedDates={{ [showDatePicker ? interactionDate : nextAppointmentDate]: { selected: true, selectedColor: C.navy } }}
+              theme={{ selectedDayBackgroundColor: C.navy, todayTextColor: C.navy, arrowColor: C.navy }}
               minDate={showDatePicker ? undefined : getTodayDate()}
             />
           </View>
@@ -508,7 +509,7 @@ export default function LeadDetailScreen() {
                       else { setNextAppointmentTime(time); setShowNextTimePicker(false); }
                     }}
                   >
-                    <Text style={[{ fontSize: 16, textAlign: 'center' }, current === time && { color: '#009688', fontWeight: 'bold' }]}>{time}</Text>
+                    <Text style={[{ fontSize: 16, textAlign: 'center' }, current === time && { color: C.navy, fontWeight: 'bold' }]}>{time}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -523,7 +524,7 @@ export default function LeadDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#009688', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { backgroundColor: C.navy, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { marginRight: 16 },
   headerTitle: { color: '#FFFFFF', fontWeight: 'bold', flex: 1 },
   keyboardView: { flex: 1 },
@@ -558,12 +559,12 @@ const styles = StyleSheet.create({
   timeline: { marginTop: 8 },
   timelineItem: { flexDirection: 'row', marginBottom: 24 },
   timelineIconContainer: { alignItems: 'center', marginRight: 16 },
-  timelineIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#009688', justifyContent: 'center', alignItems: 'center' },
+  timelineIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.navy, justifyContent: 'center', alignItems: 'center' },
   timelineLine: { width: 2, flex: 1, backgroundColor: '#E0E0E0', marginTop: 8 },
   timelineContent: { flex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
   timeSlot: { paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
-  timeSlotSelected: { backgroundColor: '#E0F2F1' },
+  timeSlotSelected: { backgroundColor: '#EEF2FF' },
 });
