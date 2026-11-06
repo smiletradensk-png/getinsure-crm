@@ -9,7 +9,7 @@ import {
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -190,7 +190,9 @@ export default function LeadsScreen() {
   const blobCache = useRef<Record<string, { blob: string; words: string[] }>>({});
   const searchTimer = useRef<any>(null);
 
-  const fetchLeads = async () => {
+  const { status: statusParam } = useLocalSearchParams<{ status?: string }>();
+
+  const fetchLeads = async (statusOverride?: string) => {
     try {
       await initializeDatabase();
       const email = await AsyncStorage.getItem('user_email') ?? '';
@@ -199,15 +201,23 @@ export default function LeadsScreen() {
       blobCache.current = {};
       interactionRef.current = null;
       setLeads(data);
-      applyFilters(search, statusFilter, data);
+      applyFilters(search, statusOverride ?? statusFilter, data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
 
   useFocusEffect(useCallback(() => {
-    const task = InteractionManager.runAfterInteractions(() => { fetchLeads(); });
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (statusParam) {
+        setStatusFilter(statusParam);
+        fetchLeads(statusParam);
+        router.setParams({ status: undefined } as any);
+      } else {
+        fetchLeads();
+      }
+    });
     return () => task.cancel();
-  }, []));
+  }, [statusParam]));
 
   const applyFilters = (q: string, s: string, data: Lead[] = leads, itextArg?: Record<string, string>) => {
     let f = data;
