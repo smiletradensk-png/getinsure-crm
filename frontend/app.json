@@ -3,7 +3,7 @@
     "name": "GETINSURE CRM",
     "slug": "getinsure-crm",
     "version": "1.2.0",
-    "description": "Premium CRM for insurance agents. Manage leads, follow-ups, and pipeline entirely offline with no subscription fees.",
+    "description": "Professional CRM for managing leads, clients and follow-ups for any business. Fully offline, no subscription fees.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "getinsure",

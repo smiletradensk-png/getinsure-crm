@@ -1,21 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  TouchableOpacity,
-  Modal,
+  View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
+  Alert, TouchableOpacity, Modal,
 } from 'react-native';
 import {
-  Text,
-  TextInput,
-  Button,
-  ActivityIndicator,
-  RadioButton,
-  IconButton,
+  Text, TextInput, Button, ActivityIndicator, RadioButton, IconButton,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -24,22 +13,7 @@ import { Calendar } from 'react-native-calendars';
 import { scheduleFollowupNotification, cancelAllLeadNotifications } from '../utils/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveLeadLocal, getLeadByIdLocal, initializeDatabase } from '../utils/database';
-
-const PRODUCTS = [
-  'Whole Life', 'Child Plan', 'Retirement Plan', 'Kanyadaan Plan',
-  'Health Insurance', 'Motor Insurance', 'Travel Insurance', 'Home Insurance',
-  'Corporate Insurance', 'ULIP', 'Endowment', 'SIP', 'Mutual Fund Lumpsum',
-  'General Insurance', 'Others',
-];
-
-const STATUSES = ['New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
-
-const SOURCES = [
-  'Facebook Ads', 'Instagram', 'Google Ads', 'Referral', 'Existing Client',
-  'Website Form', 'Walk-in', 'WhatsApp Enquiry', 'Other',
-];
-
-const FOLLOWUP_TYPES = ['WhatsApp', 'Call', 'Meeting', 'Video Call', 'Message', 'Email', 'Visit'];
+import { loadDropdowns, DEFAULT_PRODUCTS, DEFAULT_STATUSES, DEFAULT_SOURCES, DEFAULT_FOLLOWUP_TYPES } from '../utils/dropdowns';
 
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -52,26 +26,54 @@ export default function AddLeadScreen() {
   const { id, mode } = useLocalSearchParams();
   const isEditMode = mode === 'edit' && id;
 
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [product, setProduct] = useState('Whole Life');
-  const [status, setStatus] = useState('New');
-  const [source, setSource] = useState('Walk-in');
-  const [city, setCity] = useState('');
-  const [notes, setNotes] = useState('');
+  // Dropdown options (loaded from AsyncStorage, fall back to defaults)
+  const [products, setProducts]           = useState(DEFAULT_PRODUCTS);
+  const [statuses, setStatuses]           = useState(DEFAULT_STATUSES);
+  const [sources, setSources]             = useState(DEFAULT_SOURCES);
+  const [followupTypes, setFollowupTypes] = useState(DEFAULT_FOLLOWUP_TYPES);
+
+  const [name, setName]                       = useState('');
+  const [mobile, setMobile]                   = useState('');
+  const [product, setProduct]                 = useState('');
+  const [status, setStatus]                   = useState('New');
+  const [source, setSource]                   = useState('Walk-in');
+  const [city, setCity]                       = useState('');
+  const [notes, setNotes]                     = useState('');
   const [nextFollowupDate, setNextFollowupDate] = useState('');
   const [nextFollowupTime, setNextFollowupTime] = useState('10:00');
   const [nextFollowupType, setNextFollowupType] = useState('WhatsApp');
-  const [loading, setLoading] = useState(false);
-  const [fetchingLead, setFetchingLead] = useState(false);
+  const [loading, setLoading]                 = useState(false);
+  const [fetchingLead, setFetchingLead]       = useState(false);
   const [originalCreatedAt, setOriginalCreatedAt] = useState('');
 
-  const [showProductModal, setShowProductModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showProductModal, setShowProductModal]         = useState(false);
+  const [showStatusModal, setShowStatusModal]           = useState(false);
+  const [showSourceModal, setShowSourceModal]           = useState(false);
   const [showFollowupTypeModal, setShowFollowupTypeModal] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showCalendar, setShowCalendar]                 = useState(false);
+  const [showTimePicker, setShowTimePicker]             = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      await initializeDatabase();
+      // Load custom dropdowns from AsyncStorage
+      const dd = await loadDropdowns();
+      setProducts(dd.products);
+      setStatuses(dd.statuses);
+      setSources(dd.sources);
+      setFollowupTypes(dd.followupTypes);
+      // Set default product to first in list
+      if (!isEditMode) {
+        setProduct(dd.products[0] || 'General');
+        setSource(dd.sources.find(s => s === 'Walk-in') || dd.sources[0] || 'Other');
+        setNextFollowupType(dd.followupTypes.find(t => t === 'WhatsApp') || dd.followupTypes[0] || 'Call');
+      }
+      if (isEditMode) {
+        fetchLeadData();
+      }
+    };
+    init();
+  }, [isEditMode]);
 
   const formatDateToDDMMYYYY = (dateString: string) => {
     if (!dateString) return '';
@@ -87,18 +89,8 @@ export default function AddLeadScreen() {
 
   const getTodayDate = () => {
     const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   };
-
-  useEffect(() => {
-    initializeDatabase();
-    if (isEditMode) {
-      fetchLeadData();
-    }
-  }, [isEditMode]);
 
   const fetchLeadData = async () => {
     setFetchingLead(true);
@@ -110,7 +102,7 @@ export default function AddLeadScreen() {
           const digits = String(data.mobile || '').replace(/\D/g, '');
           setMobile(digits.length > 10 ? digits.slice(-10) : digits);
         }
-        setProduct(data.product || 'Whole Life');
+        setProduct(data.product || products[0] || 'General');
         setStatus(data.status || 'New');
         setSource(data.source || 'Walk-in');
         setCity(data.city || '');
@@ -121,7 +113,6 @@ export default function AddLeadScreen() {
         setOriginalCreatedAt(data.created_at || '');
       }
     } catch (error) {
-      console.error('Error fetching lead:', error);
       Alert.alert('Error', 'Failed to load lead data');
     } finally {
       setFetchingLead(false);
@@ -142,9 +133,7 @@ export default function AddLeadScreen() {
       Alert.alert('Error', 'Mobile number must be 10 digits');
       return;
     }
-
     setLoading(true);
-
     try {
       const leadId = isEditMode ? (id as string) : Date.now().toString();
       const leadData = {
@@ -162,16 +151,13 @@ export default function AddLeadScreen() {
         created_at: isEditMode ? (originalCreatedAt || new Date().toISOString()) : new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-
       const userEmail = await AsyncStorage.getItem('user_email') ?? '';
       const result = await saveLeadLocal(leadData, userEmail);
-
       if (result.success) {
         if (nextFollowupDate && nextFollowupTime) {
           await cancelAllLeadNotifications(leadId);
           await scheduleFollowupNotification(leadId, name, nextFollowupDate, nextFollowupTime);
         }
-
         Alert.alert(
           'Success',
           isEditMode ? 'Lead updated successfully' : 'Lead added successfully',
@@ -180,8 +166,7 @@ export default function AddLeadScreen() {
       } else {
         Alert.alert('Error', isEditMode ? 'Failed to update lead' : 'Failed to add lead');
       }
-    } catch (error) {
-      console.error('Error saving lead:', error);
+    } catch {
       Alert.alert('Error', 'Failed to save lead');
     } finally {
       setLoading(false);
@@ -189,12 +174,8 @@ export default function AddLeadScreen() {
   };
 
   const renderPickerModal = (
-    visible: boolean,
-    onClose: () => void,
-    options: string[],
-    selectedValue: string,
-    onSelect: (value: string) => void,
-    title: string
+    visible: boolean, onClose: () => void, options: string[],
+    selectedValue: string, onSelect: (value: string) => void, title: string,
   ) => (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
@@ -252,9 +233,9 @@ export default function AddLeadScreen() {
                 mode="outlined" style={styles.input} keyboardType="phone-pad" maxLength={10}
                 outlineColor="#009688" activeOutlineColor="#009688" />
 
-              <Text variant="labelLarge" style={styles.label}>Product *</Text>
+              <Text variant="labelLarge" style={styles.label}>Product / Service *</Text>
               <TouchableOpacity style={styles.pickerButton} onPress={() => setShowProductModal(true)}>
-                <Text style={styles.pickerButtonText}>{product}</Text>
+                <Text style={styles.pickerButtonText}>{product || 'Select…'}</Text>
                 <MaterialCommunityIcons name="chevron-down" size={24} color="#009688" />
               </TouchableOpacity>
 
@@ -300,8 +281,7 @@ export default function AddLeadScreen() {
                 {loading ? (isEditMode ? 'Updating...' : 'Adding Lead...') : (isEditMode ? 'Update Lead' : 'Save New Lead')}
               </Button>
 
-              <Button mode="outlined" onPress={() => router.back()}
-                style={styles.cancelButton} textColor="#009688">
+              <Button mode="outlined" onPress={() => router.back()} style={styles.cancelButton} textColor="#009688">
                 Cancel
               </Button>
             </View>
@@ -309,10 +289,10 @@ export default function AddLeadScreen() {
         </KeyboardAvoidingView>
       )}
 
-      {renderPickerModal(showProductModal, () => setShowProductModal(false), PRODUCTS, product, setProduct, 'Select Product')}
-      {renderPickerModal(showStatusModal, () => setShowStatusModal(false), STATUSES, status, setStatus, 'Select Status')}
-      {renderPickerModal(showSourceModal, () => setShowSourceModal(false), SOURCES, source, setSource, 'Select Source')}
-      {renderPickerModal(showFollowupTypeModal, () => setShowFollowupTypeModal(false), FOLLOWUP_TYPES, nextFollowupType, setNextFollowupType, 'Next Follow-up Type')}
+      {renderPickerModal(showProductModal, () => setShowProductModal(false), products, product, setProduct, 'Select Product / Service')}
+      {renderPickerModal(showStatusModal, () => setShowStatusModal(false), statuses, status, setStatus, 'Select Status')}
+      {renderPickerModal(showSourceModal, () => setShowSourceModal(false), sources, source, setSource, 'Select Source')}
+      {renderPickerModal(showFollowupTypeModal, () => setShowFollowupTypeModal(false), followupTypes, nextFollowupType, setNextFollowupType, 'Next Follow-up Type')}
 
       <Modal visible={showCalendar} transparent animationType="slide">
         <View style={styles.calendarModalOverlay}>
@@ -364,38 +344,38 @@ export default function AddLeadScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 16, color: '#757575' },
-  header: { backgroundColor: '#009688', padding: 16, flexDirection: 'row', alignItems: 'center' },
-  backButton: { marginRight: 16 },
-  headerTitle: { color: '#FFFFFF', fontWeight: 'bold' },
-  keyboardView: { flex: 1 },
-  scrollView: { flex: 1 },
-  content: { padding: 16 },
-  input: { marginBottom: 16 },
-  label: { marginTop: 8, marginBottom: 8, color: '#000000' },
-  pickerButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#009688', borderRadius: 4, padding: 16, marginBottom: 16, backgroundColor: '#FFFFFF' },
-  pickerButtonText: { fontSize: 16, color: '#000000' },
-  datePickerButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#009688', borderRadius: 4, padding: 16, marginBottom: 16, backgroundColor: '#FFFFFF' },
-  datePickerText: { fontSize: 16, color: '#000000' },
+  container:            { flex: 1, backgroundColor: '#FFFFFF' },
+  loadingContainer:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText:          { marginTop: 16, color: '#757575' },
+  header:               { backgroundColor: '#009688', padding: 16, flexDirection: 'row', alignItems: 'center' },
+  backButton:           { marginRight: 16 },
+  headerTitle:          { color: '#FFFFFF', fontWeight: 'bold' },
+  keyboardView:         { flex: 1 },
+  scrollView:           { flex: 1 },
+  content:              { padding: 16 },
+  input:                { marginBottom: 16 },
+  label:                { marginTop: 8, marginBottom: 8, color: '#000000' },
+  pickerButton:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#009688', borderRadius: 4, padding: 16, marginBottom: 16, backgroundColor: '#FFFFFF' },
+  pickerButtonText:     { fontSize: 16, color: '#000000' },
+  datePickerButton:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#009688', borderRadius: 4, padding: 16, marginBottom: 16, backgroundColor: '#FFFFFF' },
+  datePickerText:       { fontSize: 16, color: '#000000' },
   calendarModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', padding: 20 },
   calendarModalContent: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16 },
-  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  calendarTitle: { fontWeight: 'bold', color: '#000000' },
-  calendarCloseButton: { marginTop: 16 },
-  timeSlotContainer: { maxHeight: 400 },
-  timeSlot: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, marginBottom: 8, backgroundColor: '#FFFFFF' },
-  timeSlotSelected: { backgroundColor: '#009688', borderColor: '#009688' },
-  timeSlotText: { fontSize: 16, color: '#000000' },
+  calendarHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  calendarTitle:        { fontWeight: 'bold', color: '#000000' },
+  calendarCloseButton:  { marginTop: 16 },
+  timeSlotContainer:    { maxHeight: 400 },
+  timeSlot:             { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, marginBottom: 8, backgroundColor: '#FFFFFF' },
+  timeSlotSelected:     { backgroundColor: '#009688', borderColor: '#009688' },
+  timeSlotText:         { fontSize: 16, color: '#000000' },
   timeSlotTextSelected: { color: '#FFFFFF', fontWeight: 'bold' },
-  submitButton: { marginTop: 16, paddingVertical: 8 },
-  cancelButton: { marginTop: 8, marginBottom: 32, paddingVertical: 8 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 20, maxHeight: '80%' },
-  modalTitle: { textAlign: 'center', fontWeight: 'bold', marginBottom: 16, paddingHorizontal: 20 },
-  optionsList: { maxHeight: 400 },
-  optionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  optionText: { flex: 1, color: '#000000' },
-  closeButton: { margin: 16 },
+  submitButton:         { marginTop: 16, paddingVertical: 8 },
+  cancelButton:         { marginTop: 8, marginBottom: 32, paddingVertical: 8 },
+  modalOverlay:         { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+  modalContent:         { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 20, maxHeight: '80%' },
+  modalTitle:           { textAlign: 'center', fontWeight: 'bold', marginBottom: 16, paddingHorizontal: 20 },
+  optionsList:          { maxHeight: 400 },
+  optionItem:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  optionText:           { flex: 1, color: '#000000' },
+  closeButton:          { margin: 16 },
 });

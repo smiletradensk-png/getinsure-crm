@@ -17,10 +17,10 @@ interface Lead {
 
 type Filter = 'overdue' | 'today' | 'upcoming';
 
-const FILTERS: { key: Filter; label: string; icon: string; activeColors: [string,string]; dot: string }[] = [
-  { key: 'overdue',  label: 'Overdue',  icon: 'alert-circle-outline', activeColors: ['#B71C1C','#C62828'], dot: C.danger },
-  { key: 'today',    label: 'Today',    icon: 'calendar-today',        activeColors: ['#E65100','#F57C00'], dot: C.warning },
-  { key: 'upcoming', label: 'Upcoming', icon: 'calendar-arrow-right',  activeColors: ['#1B5E20','#2E7D32'], dot: C.success },
+const FILTERS: { key: Filter; label: string; icon: string; activeBg: string; activeText: string; dot: string }[] = [
+  { key: 'overdue',  label: 'Overdue',  icon: 'alert-circle-outline', activeBg: '#FFEBEE', activeText: '#B71C1C', dot: C.danger },
+  { key: 'today',    label: 'Today',    icon: 'calendar-today',        activeBg: '#FFF3E0', activeText: '#E65100', dot: C.warning },
+  { key: 'upcoming', label: 'Upcoming', icon: 'calendar-arrow-right',  activeBg: '#E8F5E9', activeText: '#2E7D32', dot: C.success },
 ];
 
 function getInitials(name: string) {
@@ -83,21 +83,23 @@ export default function FollowupsScreen() {
           return (
             <TouchableOpacity
               key={f.key}
-              style={[styles.filterTab, isActive && styles.filterTabActive]}
+              style={[
+                styles.filterTab,
+                isActive
+                  ? { backgroundColor: f.activeBg, borderColor: f.activeText + '44' }
+                  : { backgroundColor: C.white, borderColor: C.border },
+              ]}
               onPress={() => { setFilter(f.key); fetchFollowups(f.key); }}
               activeOpacity={0.8}
             >
-              {isActive ? (
-                <LinearGradient colors={f.activeColors} style={styles.filterGradient}>
-                  <MaterialCommunityIcons name={f.icon as any} size={16} color={C.white} />
-                  <Text style={[styles.filterLabel, { color: C.white }]}>{f.label}</Text>
-                </LinearGradient>
-              ) : (
-                <View style={styles.filterGradient}>
-                  <MaterialCommunityIcons name={f.icon as any} size={16} color={C.textMid} />
-                  <Text style={[styles.filterLabel, { color: C.textMid }]}>{f.label}</Text>
-                </View>
-              )}
+              <MaterialCommunityIcons
+                name={f.icon as any}
+                size={16}
+                color={isActive ? f.activeText : C.textMid}
+              />
+              <Text style={[styles.filterLabel, { color: isActive ? f.activeText : C.textMid, fontWeight: isActive ? '800' : '600' }]}>
+                {f.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -186,10 +188,8 @@ const styles = StyleSheet.create({
   headerSub: { fontSize:13, color:'rgba(255,255,255,0.65)', marginTop:3 },
 
   filterWrap: { flexDirection:'row', padding:12, gap:8, backgroundColor: C.white, borderBottomWidth:1, borderBottomColor: C.border },
-  filterTab: { flex:1, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: C.border },
-  filterTabActive: { borderColor:'transparent' },
-  filterGradient: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:5, paddingVertical:10, paddingHorizontal:6 },
-  filterLabel: { fontSize:12, fontWeight:'700' },
+  filterTab: { flex:1, borderRadius:22, borderWidth:1.5, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:5, paddingVertical:10, paddingHorizontal:6 },
+  filterLabel: { fontSize:12 },
 
   scroll: { flex:1 },
   list: { padding:12, gap:10 },

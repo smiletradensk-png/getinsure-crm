@@ -2,6 +2,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, saveLeadLocal, initializeDatabase } from './database';
 
+const USER_EMAIL_KEY = 'user_email';
+
 const SAF = FileSystem.StorageAccessFramework;
 
 const BACKUP_DIR_URI_KEY  = 'auto_backup_dir_uri';
@@ -72,7 +74,8 @@ export const performAutoBackup = async (): Promise<{
     if (!dirUri) return { success: false, error: 'no_folder_set' };
 
     await initializeDatabase();
-    const leads = getAllLeadsLocal();
+    const userEmail = await AsyncStorage.getItem(USER_EMAIL_KEY) ?? '';
+    const leads = getAllLeadsLocal(userEmail);
     const content = JSON.stringify(
       { leads, backup_date: new Date().toISOString(), version: 1 },
       null,
@@ -124,10 +127,11 @@ export const checkForBackupFile = async (): Promise<{
 
 export const restoreFromBackup = async (leads: any[]): Promise<{ restored: number }> => {
   await initializeDatabase();
+  const userEmail = await AsyncStorage.getItem(USER_EMAIL_KEY) ?? '';
   let restored = 0;
   for (const lead of leads) {
     try {
-      const result = await saveLeadLocal(lead);
+      const result = await saveLeadLocal(lead, lead.user_email || userEmail);
       if (result.success) restored++;
     } catch {}
   }

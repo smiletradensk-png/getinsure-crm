@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type FontSize = 'small' | 'medium' | 'large' | 'xlarge';
@@ -46,3 +46,9 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 };
 
 export const useAppSettings = () => useContext(AppSettingsContext);
+
+/** Returns a function that scales a font size by the current font scale. */
+export const useFs = () => {
+  const { fontScale } = useAppSettings();
+  return useCallback((size: number) => Math.round(size * fontScale), [fontScale]);
+};

@@ -279,7 +279,8 @@ export const deleteInteractionLocal = (id: string) => {
 // ─── STATS ───────────────────────────────────────────────
 
 export const getLocalStats = (userEmail = '') => {
-  if (!db) return { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0 };
+  const empty = { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0, new_leads: 0, followup_leads: 0, pipeline_leads: 0 };
+  if (!db) return empty;
 
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -288,9 +289,12 @@ export const getLocalStats = (userEmail = '') => {
 
     const total      = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE 1=1 ${emailFilter}`, emailParam);
     const todayF     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date = ? ${emailFilter}`, [today, ...emailParam]);
-    const overdue    = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date < ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
+    const overdue    = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE next_followup_date != '' AND next_followup_date IS NOT NULL AND next_followup_date < ? AND status NOT IN ('Closed','Not Interested') ${emailFilter}`, [today, ...emailParam]);
     const interested = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Interested' ${emailFilter}`, emailParam);
     const closed     = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Closed' ${emailFilter}`, emailParam);
+    const newLeads   = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'New' ${emailFilter}`, emailParam);
+    const followup   = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Follow-up' ${emailFilter}`, emailParam);
+    const pipeline   = db.getFirstSync(`SELECT COUNT(*) as count FROM leads WHERE status = 'Pipeline' ${emailFilter}`, emailParam);
 
     return {
       total_leads:        total?.count      || 0,
@@ -298,10 +302,13 @@ export const getLocalStats = (userEmail = '') => {
       overdue_followups:  overdue?.count    || 0,
       interested_leads:   interested?.count || 0,
       closed_leads:       closed?.count     || 0,
+      new_leads:          newLeads?.count   || 0,
+      followup_leads:     followup?.count   || 0,
+      pipeline_leads:     pipeline?.count   || 0,
     };
   } catch (error) {
     console.error('Error getting stats:', error);
-    return { total_leads: 0, today_followups: 0, overdue_followups: 0, interested_leads: 0, closed_leads: 0 };
+    return empty;
   }
 };
 
