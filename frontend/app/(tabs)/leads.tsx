@@ -192,6 +192,8 @@ export default function LeadsScreen() {
   const interactionRef = useRef<Record<string, string> | null>(null);
   const blobCache = useRef<Record<string, { blob: string; words: string[] }>>({});
   const searchTimer = useRef<any>(null);
+  const statusRef = useRef('All');
+  const searchRef = useRef('');
 
   const fetchLeads = async (statusOverride?: string) => {
     try {
@@ -202,7 +204,7 @@ export default function LeadsScreen() {
       blobCache.current = {};
       interactionRef.current = null;
       setLeads(data);
-      applyFilters(search, statusOverride ?? statusFilter, data);
+      applyFilters(searchRef.current, statusOverride ?? statusRef.current, data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -211,6 +213,7 @@ export default function LeadsScreen() {
     const task = InteractionManager.runAfterInteractions(() => {
       const pending = takePendingStatus();
       if (pending) {
+        statusRef.current = pending;
         setStatusFilter(pending);
         fetchLeads(pending);
       } else {
@@ -248,6 +251,9 @@ export default function LeadsScreen() {
       return n;
     });
   }, []);
+
+  statusRef.current = statusFilter;
+  searchRef.current = search;
 
   const fetchLeadsRef = useRef<() => void>(() => {});
   fetchLeadsRef.current = fetchLeads;
