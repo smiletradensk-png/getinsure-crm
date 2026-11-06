@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, InteractionManager } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,7 +37,10 @@ export default function PipelineScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchLeads(); }, []));
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => { fetchLeads(); });
+    return () => task.cancel();
+  }, []));
 
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={C.navy} /></View>;
 

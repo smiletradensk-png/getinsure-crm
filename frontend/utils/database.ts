@@ -139,6 +139,20 @@ export const getAllLeadsLocal = (userEmail = ''): any[] => {
   }
 };
 
+export const updateLeadStatusLocal = (id: string, status: string) => {
+  if (!db) return { success: false };
+  try {
+    db.runSync(
+      `UPDATE leads SET status = ?, updated_at = ?, local_changes = 1 WHERE id = ?`,
+      [status, new Date().toISOString(), id],
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating status:', error);
+    return { success: false };
+  }
+};
+
 export const getLeadByIdLocal = (id: string): any => {
   if (!db) return null;
   try {

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
-  View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
+  View, StyleSheet, ScrollView, RefreshControl, FlatList, InteractionManager, TouchableOpacity,
   Linking, Alert, Modal, Platform,
 } from 'react-native';
 import {
@@ -93,6 +93,85 @@ const buildBlob = (l: any, interactionText: string): string => norm([
   interactionText,
 ].filter(Boolean).join(' '));
 
+const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected, onToggle, onDelete }: {
+  lead: any; selectionMode: boolean; isSelected: boolean; onToggle: (id: string) => void; onDelete: (id: string) => void;
+}) {
+  const statusColor = STATUS_COLORS[lead.status] || C.textMid;
+  return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => selectionMode ? onToggle(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } })}
+                activeOpacity={0.8}
+              >
+                {/* Colored left bar */}
+                <View style={[styles.cardBar, { backgroundColor: statusColor }]} />
+
+                <View style={styles.cardBody}>
+                  {/* Row: avatar + info + actions */}
+                  <View style={styles.cardTop}>
+                    {selectionMode ? (
+                      <Checkbox status={isSelected ? 'checked' : 'unchecked'} onPress={() => onToggle(lead.id)} color={C.navy} />
+                    ) : (
+                      <View style={[styles.avatar, { backgroundColor: statusColor + '22' }]}>
+                        <Text style={[styles.avatarText, { color: statusColor }]}>{getInitials(lead.name)}</Text>
+                      </View>
+                    )}
+                    <View style={styles.info}>
+                      <Text selectable style={styles.name} numberOfLines={1}>{lead.name}</Text>
+                      <Text selectable style={styles.mobile}>{lead.mobile}</Text>
+                      {lead.city ? <Text selectable style={styles.city}>{lead.city}</Text> : null}
+                      {lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? (
+                        <Text selectable style={styles.city}>
+                          {new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {!selectionMode && (
+                      <TouchableOpacity onPress={() => onDelete(lead.id)} style={styles.deleteBtn} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Tags row */}
+                  <View style={styles.tagsRow}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+                      <Text style={styles.statusBadgeText}>{lead.status}</Text>
+                    </View>
+                    <View style={styles.productBadge}>
+                      <Text style={styles.productBadgeText}>{lead.product}</Text>
+                    </View>
+                  </View>
+
+                  {lead.next_followup_date && (
+                    <View style={styles.followupRow}>
+                      <MaterialCommunityIcons name="calendar-clock" size={14} color={C.warning} />
+                      <Text style={styles.followupText}> {lead.next_followup_date.split('-').reverse().join('-')}</Text>
+                    </View>
+                  )}
+
+                  {/* Action buttons */}
+                  {!selectionMode && (
+                    <View style={styles.actBtns}>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E3F2FD' }]} onPress={() => Linking.openURL(`tel:${lead.mobile}`)}>
+                        <MaterialCommunityIcons name="phone" size={16} color="#1565C0" />
+                        <Text style={[styles.actBtnText, { color: '#1565C0' }]}>Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E8F5E9' }]} onPress={() => Linking.openURL(`https://wa.me/${fmtPhone(lead.mobile)}`)}>
+                        <MaterialCommunityIcons name="whatsapp" size={16} color="#2E7D32" />
+                        <Text style={[styles.actBtnText, { color: '#2E7D32' }]}>WhatsApp</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.navy + '15' }]} onPress={() => router.push({ pathname: '/add-lead', params: { id: lead.id, mode: 'edit' } })}>
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color={C.navy} />
+                        <Text style={[styles.actBtnText, { color: C.navy }]}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+  );
+});
+
 export default function LeadsScreen() {
   const [leads, setLeads]               = useState<Lead[]>([]);
   const [filtered, setFiltered]         = useState<Lead[]>([]);
@@ -107,8 +186,7 @@ export default function LeadsScreen() {
   const [sendProgress, setSendProgress] = useState(0);
   const [statusFilter, setStatusFilter] = useState('All');
   const [userEmail, setUserEmail]       = useState('');
-  const [interactionText, setInteractionText] = useState<Record<string, string>>({});
-  const [visibleCount, setVisibleCount] = useState(30);
+  const interactionRef = useRef<Record<string, string> | null>(null);
   const blobCache = useRef<Record<string, { blob: string; words: string[] }>>({});
   const searchTimer = useRef<any>(null);
 
@@ -118,50 +196,57 @@ export default function LeadsScreen() {
       const email = await AsyncStorage.getItem('user_email') ?? '';
       setUserEmail(email);
       const data = getAllLeadsLocal(email);
-      const itext = getInteractionTextByLead();
-      setInteractionText(itext);
-      const cache: Record<string, { blob: string; words: string[] }> = {};
-      data.forEach((l: any) => {
-        const blob = buildBlob(l, itext[l.id] || '');
-        cache[l.id] = { blob, words: blob.split(/[\s,.:;/()\-]+/).filter(Boolean) };
-      });
-      blobCache.current = cache;
+      blobCache.current = {};
+      interactionRef.current = null;
       setLeads(data);
-      applyFilters(search, statusFilter, data, itext);
+      applyFilters(search, statusFilter, data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchLeads(); }, []));
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => { fetchLeads(); });
+    return () => task.cancel();
+  }, []));
 
-  const applyFilters = (q: string, s: string, data: Lead[] = leads, itext: Record<string, string> = interactionText) => {
+  const applyFilters = (q: string, s: string, data: Lead[] = leads, itextArg?: Record<string, string>) => {
     let f = data;
     if (s !== 'All') f = f.filter(l => l.status === s);
     const tokens = norm(q).split(/\s+/).filter(Boolean);
     if (tokens.length) {
+      if (!interactionRef.current) interactionRef.current = itextArg || getInteractionTextByLead();
+      const itext = interactionRef.current;
       f = f.filter(l => {
-        const c = blobCache.current[l.id];
-        const blob = c ? c.blob : buildBlob(l, itext[l.id] || '');
-        const words = c ? c.words : blob.split(/[\s,.:;/()\-]+/).filter(Boolean);
+        let c = blobCache.current[l.id];
+        if (!c) {
+          const b0 = buildBlob(l, itext[l.id] || '');
+          c = blobCache.current[l.id] = { blob: b0, words: b0.split(/[\s,.:;/()\-]+/).filter(Boolean) };
+        }
+        const blob = c.blob;
+        const words = c.words;
         return tokens.every(t => tokenMatches(t, blob, words));
       });
     }
     setFiltered(f);
-    setVisibleCount(30);
   };
 
-  const toggleSel = (id: string) => {
-    const n = new Set(selected);
-    n.has(id) ? n.delete(id) : n.add(id);
-    setSelected(n);
-  };
+  const toggleSel = useCallback((id: string) => {
+    setSelected(prev => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }, []);
 
-  const handleDelete = (id: string) => {
+  const fetchLeadsRef = useRef<() => void>(() => {});
+  fetchLeadsRef.current = fetchLeads;
+
+  const handleDelete = useCallback((id: string) => {
     Alert.alert('Delete Lead', 'Delete this lead?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => { deleteLeadLocal(id); fetchLeads(); } },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteLeadLocal(id); fetchLeadsRef.current(); } },
     ]);
-  };
+  }, []);
 
   const handleBulkDelete = () => {
     Alert.alert('Delete', `Delete ${selected.size} lead(s)?`, [
@@ -263,103 +348,35 @@ export default function LeadsScreen() {
         </View>
       )}
 
-      <ScrollView
+      <FlatList
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchLeads(); }} colors={[C.navy]} />}
-        scrollEventThrottle={200}
-        onScroll={({ nativeEvent }) => {
-          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 600) {
-            setVisibleCount(c => (c < filtered.length ? c + 30 : c));
-          }
-        }}
-      >
-        <View style={styles.list}>
-          {filtered.length === 0 ? (
-            <View style={styles.empty}>
-              <MaterialCommunityIcons name="account-search-outline" size={64} color={C.border} />
-              <Text style={styles.emptyText}>No leads found</Text>
-              <Text style={styles.emptySub}>Add your first lead to get started</Text>
-            </View>
-          ) : filtered.slice(0, visibleCount).map(lead => {
-            const statusColor = STATUS_COLORS[lead.status] || C.textMid;
-            return (
-              <TouchableOpacity
-                key={lead.id}
-                style={styles.card}
-                onPress={() => selectionMode ? toggleSel(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } })}
-                activeOpacity={0.8}
-              >
-                {/* Colored left bar */}
-                <View style={[styles.cardBar, { backgroundColor: statusColor }]} />
-
-                <View style={styles.cardBody}>
-                  {/* Row: avatar + info + actions */}
-                  <View style={styles.cardTop}>
-                    {selectionMode ? (
-                      <Checkbox status={selected.has(lead.id) ? 'checked' : 'unchecked'} onPress={() => toggleSel(lead.id)} color={C.navy} />
-                    ) : (
-                      <View style={[styles.avatar, { backgroundColor: statusColor + '22' }]}>
-                        <Text style={[styles.avatarText, { color: statusColor }]}>{getInitials(lead.name)}</Text>
-                      </View>
-                    )}
-                    <View style={styles.info}>
-                      <Text style={styles.name} numberOfLines={1}>{lead.name}</Text>
-                      <Text style={styles.mobile}>{lead.mobile}</Text>
-                      {lead.city ? <Text style={styles.city}>{lead.city}</Text> : null}
-                      {lead.created_at && !isNaN(new Date(lead.created_at).getTime()) ? (
-                        <Text style={styles.city}>
-                          {new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {!selectionMode && (
-                      <TouchableOpacity onPress={() => handleDelete(lead.id)} style={styles.deleteBtn} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
-                        <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.danger} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Tags row */}
-                  <View style={styles.tagsRow}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                      <Text style={styles.statusBadgeText}>{lead.status}</Text>
-                    </View>
-                    <View style={styles.productBadge}>
-                      <Text style={styles.productBadgeText}>{lead.product}</Text>
-                    </View>
-                  </View>
-
-                  {lead.next_followup_date && (
-                    <View style={styles.followupRow}>
-                      <MaterialCommunityIcons name="calendar-clock" size={14} color={C.warning} />
-                      <Text style={styles.followupText}> {lead.next_followup_date.split('-').reverse().join('-')}</Text>
-                    </View>
-                  )}
-
-                  {/* Action buttons */}
-                  {!selectionMode && (
-                    <View style={styles.actBtns}>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E3F2FD' }]} onPress={() => Linking.openURL(`tel:${lead.mobile}`)}>
-                        <MaterialCommunityIcons name="phone" size={16} color="#1565C0" />
-                        <Text style={[styles.actBtnText, { color: '#1565C0' }]}>Call</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: '#E8F5E9' }]} onPress={() => Linking.openURL(`https://wa.me/${fmtPhone(lead.mobile)}`)}>
-                        <MaterialCommunityIcons name="whatsapp" size={16} color="#2E7D32" />
-                        <Text style={[styles.actBtnText, { color: '#2E7D32' }]}>WhatsApp</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.navy + '15' }]} onPress={() => router.push({ pathname: '/add-lead', params: { id: lead.id, mode: 'edit' } })}>
-                        <MaterialCommunityIcons name="pencil-outline" size={16} color={C.navy} />
-                        <Text style={[styles.actBtnText, { color: C.navy }]}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
+        contentContainerStyle={styles.list}
+        data={filtered}
+        keyExtractor={(l: any) => l.id}
+        renderItem={({ item }) => (
+          <LeadCard
+            lead={item}
+            selectionMode={selectionMode}
+            isSelected={selected.has(item.id)}
+            onToggle={toggleSel}
+            onDelete={handleDelete}
+          />
+        )}
+        extraData={[selectionMode, selected]}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews
+        refreshing={refreshing}
+        onRefresh={() => { setRefreshing(true); fetchLeads(); }}
+        ListEmptyComponent={(
+          <View style={styles.empty}>
+            <MaterialCommunityIcons name="account-search-outline" size={64} color={C.border} />
+            <Text style={styles.emptyText}>No leads found</Text>
+            <Text style={styles.emptySub}>Add your first lead to get started</Text>
+          </View>
+        )}
+      />
 
       {/* FAB removed — use center tab bar button */}
 

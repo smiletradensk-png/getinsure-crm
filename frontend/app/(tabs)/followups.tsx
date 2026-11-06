@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, InteractionManager } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,7 +58,10 @@ export default function FollowupsScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchFollowups(filter); }, [filter]));
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => { fetchFollowups(filter); });
+    return () => task.cancel();
+  }, [filter]));
 
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={C.navy} /></View>;
 
@@ -127,8 +130,8 @@ export default function FollowupsScreen() {
                     <Text style={[styles.avatarText, { color: active.dot }]}>{getInitials(lead.name)}</Text>
                   </View>
                   <View style={styles.info}>
-                    <Text style={styles.name}>{lead.name}</Text>
-                    <Text style={styles.mobile}>{lead.mobile}</Text>
+                    <Text selectable style={styles.name}>{lead.name}</Text>
+                    <Text selectable style={styles.mobile}>{lead.mobile}</Text>
                   </View>
                   <View style={styles.tags}>
                     <View style={[styles.badge, { backgroundColor: active.dot }]}>

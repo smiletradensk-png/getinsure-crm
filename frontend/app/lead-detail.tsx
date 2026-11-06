@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
-  Linking, Alert, KeyboardAvoidingView, Platform, Modal,
+  Linking, Alert, KeyboardAvoidingView, Platform, Modal, InteractionManager,
 } from 'react-native';
 import {
   Text, Card, Chip, ActivityIndicator, Button,
@@ -14,8 +14,10 @@ import { Calendar } from 'react-native-calendars';
 import * as Location from 'expo-location';
 import {
   getLeadByIdLocal, saveLeadLocal, initializeDatabase,
-  saveInteractionLocal, getInteractionsByLeadId, deleteInteractionLocal,
+  saveInteractionLocal, getInteractionsByLeadId, deleteInteractionLocal, updateLeadStatusLocal,
 } from '../utils/database';
+
+const STATUS_OPTIONS = ['New', 'Interested', 'Follow-up', 'Pipeline', 'Closed', 'Not Interested'];
 
 const INTERACTION_TYPES = ['Call', 'Meeting', 'Online', 'Email', 'Message', 'Other'];
 
@@ -64,7 +66,10 @@ export default function LeadDetailScreen() {
     setLoading(false);
   };
 
-  useFocusEffect(useCallback(() => { loadData(); }, []));
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => { loadData(); });
+    return () => task.cancel();
+  }, []));
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -87,6 +92,12 @@ export default function LeadDetailScreen() {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  const handleStatusChange = (status: string) => {
+    if (!lead || lead.status === status) return;
+    setLead({ ...lead, status });
+    updateLeadStatusLocal(lead.id, status);
   };
 
   const handleCall = (mobile: string) => Linking.openURL(`tel:${mobile}`);
@@ -244,19 +255,39 @@ export default function LeadDetailScreen() {
             {/* Lead Info Card */}
             <Card style={styles.card}>
               <Card.Content>
-                <Text variant="headlineSmall" style={styles.leadName}>{lead.name}</Text>
-                <Text variant="bodyLarge" style={styles.leadMobile}>{lead.mobile}</Text>
+                <Text selectable variant="headlineSmall" style={styles.leadName}>{lead.name}</Text>
+                <Text selectable variant="bodyLarge" style={styles.leadMobile}>{lead.mobile}</Text>
 
                 <View style={styles.chipContainer}>
-                  <Chip style={[styles.chip, { backgroundColor: getStatusColor(lead.status) }]} textStyle={{ color: '#FFFFFF' }}>{lead.status}</Chip>
                   <Chip style={styles.chip}>{lead.product}</Chip>
                   {lead.source ? <Chip style={styles.chip}>{lead.source}</Chip> : null}
+                </View>
+
+                <Text style={{ color: '#757575', fontSize: 12, marginTop: 10, marginBottom: 4 }}>Status (tap to change)</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                  {STATUS_OPTIONS.map(st => {
+                    const active = lead.status === st;
+                    return (
+                      <TouchableOpacity
+                        key={st}
+                        onPress={() => handleStatusChange(st)}
+                        activeOpacity={0.7}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+                          backgroundColor: active ? getStatusColor(st) : '#F1F3F8',
+                          borderWidth: 1, borderColor: active ? getStatusColor(st) : '#D6DAE3',
+                        }}
+                      >
+                        <Text style={{ color: active ? '#FFFFFF' : '#424242', fontWeight: active ? 'bold' : 'normal', fontSize: 13 }}>{st}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 {lead.created_at ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="clock-outline" size={20} color="#757575" />
-                    <Text variant="bodyMedium" style={styles.infoText}>
+                    <Text selectable variant="bodyMedium" style={styles.infoText}>
                       Lead received: {formatDateTime(lead.created_at)}
                     </Text>
                   </View>
@@ -265,14 +296,14 @@ export default function LeadDetailScreen() {
                 {lead.city ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="map-marker" size={20} color="#757575" />
-                    <Text variant="bodyMedium" style={styles.infoText}>{lead.city}</Text>
+                    <Text selectable variant="bodyMedium" style={styles.infoText}>{lead.city}</Text>
                   </View>
                 ) : null}
 
                 {lead.next_followup_date ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="calendar-clock" size={20} color="#FF9800" />
-                    <Text variant="bodyMedium" style={[styles.infoText, { color: '#FF9800', fontWeight: 'bold' }]}>
+                    <Text selectable variant="bodyMedium" style={[styles.infoText, { color: '#FF9800', fontWeight: 'bold' }]}>
                       Next: {formatDate(lead.next_followup_date)} {lead.next_followup_time || ''}
                     </Text>
                   </View>
@@ -281,7 +312,7 @@ export default function LeadDetailScreen() {
                 {lead.notes ? (
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="note-text" size={20} color="#757575" />
-                    <Text variant="bodyMedium" style={styles.infoText}>{lead.notes}</Text>
+                    <Text selectable variant="bodyMedium" style={styles.infoText}>{lead.notes}</Text>
                   </View>
                 ) : null}
 
@@ -332,7 +363,7 @@ export default function LeadDetailScreen() {
                     </View>
 
                     {tagLocation && currentLocation ? (
-                      <Text style={styles.locationText}>📍 {currentLocation}</Text>
+                      <Text selectable style={styles.locationText}>📍 {currentLocation}</Text>
                     ) : null}
 
                     {/* Interaction Type */}
@@ -446,9 +477,9 @@ export default function LeadDetailScreen() {
                               <IconButton icon="delete" iconColor="#F44336" size={18} onPress={() => handleDeleteInteraction(interaction.id)} />
                             </View>
                           </View>
-                          <Text style={{ color: '#424242', lineHeight: 20 }}>{interaction.description}</Text>
+                          <Text selectable style={{ color: '#424242', lineHeight: 20 }}>{interaction.description}</Text>
                           {interaction.location ? (
-                            <Text style={{ color: '#757575', fontSize: 12, marginTop: 4 }}>📍 {interaction.location}</Text>
+                            <Text selectable style={{ color: '#757575', fontSize: 12, marginTop: 4 }}>📍 {interaction.location}</Text>
                           ) : null}
                           {interaction.next_appointment_date ? (
                             <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>

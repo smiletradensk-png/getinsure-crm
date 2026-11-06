@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, InteractionManager } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,7 +36,10 @@ export default function DashboardScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchStats(); }, []));
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => { fetchStats(); });
+    return () => task.cancel();
+  }, []));
 
   if (loading) {
     return (
