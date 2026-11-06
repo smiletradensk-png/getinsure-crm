@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, initializeDatabase } from '../../utils/database';
 import CopyText from '../../components/CopyText';
 import { C } from '../theme';
+import { fmt12, apptKey } from '../../utils/time12';
 import { takePendingFollowup } from '../../utils/navFilter';
 
 interface Lead {
@@ -55,6 +56,7 @@ export default function FollowupsScreen() {
         if (f === 'upcoming') return fd > today;
         return false;
       });
+      res.sort((a: Lead, b: Lead) => apptKey(a).localeCompare(apptKey(b)));
       setLeads(res);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -151,7 +153,7 @@ export default function FollowupsScreen() {
                   <MaterialCommunityIcons name="calendar-clock" size={15} color={active.dot} />
                   <Text style={[styles.dateText, { color: active.dot }]}>
                     {lead.next_followup_date ? fmtDate(lead.next_followup_date) : ''}
-                    {lead.next_followup_time ? `  at ${lead.next_followup_time}` : ''}
+                    {lead.next_followup_time ? `  at ${fmt12(lead.next_followup_time)}` : ''}
                   </Text>
                   <View style={[styles.productPill, { marginLeft: 'auto' }]}>
                     <Text style={styles.productText}>{lead.product}</Text>

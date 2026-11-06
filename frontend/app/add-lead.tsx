@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveLeadLocal, getLeadByIdLocal, initializeDatabase } from '../utils/database';
 import { loadDropdowns, DEFAULT_PRODUCTS, DEFAULT_STATUSES, DEFAULT_SOURCES, DEFAULT_FOLLOWUP_TYPES } from '../utils/dropdowns';
 
+import { fmt12 } from '../utils/time12';
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
@@ -262,7 +263,7 @@ export default function AddLeadScreen() {
 
               <Text variant="labelLarge" style={styles.label}>Follow-up Time</Text>
               <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowTimePicker(true)}>
-                <Text style={styles.datePickerText}>{nextFollowupTime || 'Select Time'}</Text>
+                <Text style={styles.datePickerText}>{nextFollowupTime ? fmt12(nextFollowupTime) : 'Select Time'}</Text>
                 <MaterialCommunityIcons name="clock-outline" size={24} color="#009688" />
               </TouchableOpacity>
 
@@ -329,7 +330,7 @@ export default function AddLeadScreen() {
                   onPress={() => { setNextFollowupTime(time); setShowTimePicker(false); }}
                 >
                   <MaterialCommunityIcons name="clock-outline" size={20} color={nextFollowupTime === time ? '#FFFFFF' : '#009688'} />
-                  <Text style={[styles.timeSlotText, nextFollowupTime === time && styles.timeSlotTextSelected]}>{time}</Text>
+                  <Text style={[styles.timeSlotText, nextFollowupTime === time && styles.timeSlotTextSelected]}>{fmt12(time)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

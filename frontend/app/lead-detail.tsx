@@ -18,6 +18,7 @@ import {
   saveInteractionLocal, getInteractionsByLeadId, deleteInteractionLocal, updateLeadStatusLocal,
 } from '../utils/database';
 import { C } from './theme';
+import { fmt12 } from '../utils/time12';
 import { loadDropdowns, DEFAULT_STATUSES } from '../utils/dropdowns';
 
 const STATUS_ICONS: Record<string, string> = {
@@ -187,7 +188,7 @@ export default function LeadDetailScreen() {
       // Send WhatsApp if checked
       if (sendWhatsApp && lead) {
         const apptMsg = nextAppointmentDate
-          ? `\n\nNext Appointment: ${formatDate(nextAppointmentDate)} at ${nextAppointmentTime}`
+          ? `\n\nNext Appointment: ${formatDate(nextAppointmentDate)} at ${fmt12(nextAppointmentTime)}`
           : '';
         handleWhatsApp(lead.mobile, `Hi ${lead.name},\n\nThank you for your time today.${apptMsg}\n\nBest Regards`);
       }
@@ -317,14 +318,34 @@ export default function LeadDetailScreen() {
                   </View>
                 ) : null}
 
-                {lead.next_followup_date ? (
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons name="calendar-clock" size={20} color="#FF9800" />
-                    <CopyText variant="bodyMedium" style={[styles.infoText, { color: '#FF9800', fontWeight: 'bold' }]}>
-                      Next: {formatDate(lead.next_followup_date)} {lead.next_followup_time || ''}
-                    </CopyText>
-                  </View>
-                ) : null}
+                {lead.next_followup_date ? (() => {
+                  const ap = interactions.find((i: any) => i.next_appointment_date === lead.next_followup_date);
+                  const act = lead.next_followup_type || ap?.next_appointment_type || '';
+                  const note = ap?.next_appointment_note || '';
+                  return (
+                    <View style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 12, marginVertical: 6, borderLeftWidth: 4, borderLeftColor: '#FF9800' }}>
+                      <Text style={{ color: '#E65100', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>NEXT APPOINTMENT</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <MaterialCommunityIcons name="calendar-clock" size={20} color="#E65100" />
+                        <CopyText variant="bodyMedium" style={{ marginLeft: 8, color: '#E65100', fontWeight: 'bold' }}>
+                          {formatDate(lead.next_followup_date)}{lead.next_followup_time ? `  ${fmt12(lead.next_followup_time)}` : ''}
+                        </CopyText>
+                      </View>
+                      {act ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                          <MaterialCommunityIcons name="flag-outline" size={18} color="#6D4C41" />
+                          <Text style={{ marginLeft: 8, color: '#424242' }}>Action: <Text style={{ fontWeight: '700' }}>{act}</Text></Text>
+                        </View>
+                      ) : null}
+                      {note ? (
+                        <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                          <MaterialCommunityIcons name="note-text-outline" size={18} color="#6D4C41" />
+                          <CopyText style={{ marginLeft: 8, color: '#424242', flex: 1 }}>{note}</CopyText>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })() : null}
 
                 {lead.notes ? (
                   <View style={styles.infoRow}>
@@ -371,7 +392,7 @@ export default function LeadDetailScreen() {
                         <Text style={styles.dateTimeText}>{formatDate(interactionDate)}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.dateTimeButton} onPress={() => setShowTimePicker(true)}>
-                        <Text style={styles.dateTimeText}>{interactionTime}</Text>
+                        <Text style={styles.dateTimeText}>{fmt12(interactionTime)}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.locationCheckbox} onPress={() => { setTagLocation(!tagLocation); if (!tagLocation) getCurrentLocation(); }}>
                         <Checkbox status={tagLocation ? 'checked' : 'unchecked'} color={C.navy} />
@@ -418,7 +439,7 @@ export default function LeadDetailScreen() {
                           <Text style={styles.dateTimeText}>{nextAppointmentDate ? formatDate(nextAppointmentDate) : 'Select Date'}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.dateTimeButton} onPress={() => setShowNextTimePicker(true)}>
-                          <Text style={styles.dateTimeText}>{nextAppointmentTime}</Text>
+                          <Text style={styles.dateTimeText}>{fmt12(nextAppointmentTime)}</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -500,7 +521,7 @@ export default function LeadDetailScreen() {
                           ) : null}
                           {interaction.next_appointment_date ? (
                             <Text style={{ color: '#FF9800', fontSize: 12, marginTop: 4 }}>
-                              📅 Next: {formatDate(interaction.next_appointment_date)} at {interaction.next_appointment_time}
+                              📅 Next: {formatDate(interaction.next_appointment_date)} at {fmt12(interaction.next_appointment_time)}{interaction.next_appointment_type ? ` · ${interaction.next_appointment_type}` : ''}
                             </Text>
                           ) : null}
                         </View>
@@ -556,7 +577,7 @@ export default function LeadDetailScreen() {
                       else { setNextAppointmentTime(time); setShowNextTimePicker(false); }
                     }}
                   >
-                    <Text style={[{ fontSize: 16, textAlign: 'center' }, current === time && { color: C.navy, fontWeight: 'bold' }]}>{time}</Text>
+                    <Text style={[{ fontSize: 16, textAlign: 'center' }, current === time && { color: C.navy, fontWeight: 'bold' }]}>{fmt12(time)}</Text>
                   </TouchableOpacity>
                 );
               })}

@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase, getInteractionTextByLead } from '../../utils/database';
+import { fmt12, apptKey } from '../../utils/time12';
 import CopyText from '../../components/CopyText';
 import { C } from '../theme';
 
@@ -149,7 +150,7 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
                   {lead.next_followup_date && (
                     <View style={styles.followupRow}>
                       <MaterialCommunityIcons name="calendar-clock" size={14} color={C.warning} />
-                      <Text style={styles.followupText}> {lead.next_followup_date.split('-').reverse().join('-')}</Text>
+                      <Text style={styles.followupText}> {lead.next_followup_date.split('-').reverse().join('-')}{lead.next_followup_time ? `  ${fmt12(lead.next_followup_time)}` : ''}</Text>
                     </View>
                   )}
 
@@ -241,6 +242,7 @@ export default function LeadsScreen() {
         return tokens.every(t => tokenMatches(t, blob, words));
       });
     }
+    if (s !== 'All') f = [...f].sort((a: any, b: any) => apptKey(a).localeCompare(apptKey(b)));
     setFiltered(f);
   };
 
