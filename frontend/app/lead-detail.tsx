@@ -19,7 +19,9 @@ import {
 } from '../utils/database';
 import { C } from './theme';
 import { scheduleFollowupNotification, cancelAllLeadNotifications } from '../utils/notifications';
+import * as Haptics from 'expo-haptics';
 import { fmt12 } from '../utils/time12';
+import TimePickerModal from '../components/TimePickerModal';
 import { loadDropdowns, DEFAULT_STATUSES } from '../utils/dropdowns';
 
 const STATUS_ICONS: Record<string, string> = {
@@ -105,6 +107,7 @@ export default function LeadDetailScreen() {
 
   const handleStatusChange = (status: string) => {
     if (!lead || lead.status === status) return;
+    Haptics.selectionAsync().catch(() => {});
     setLead({ ...lead, status });
     updateLeadStatusLocal(lead.id, status);
     if (status === 'Closed' || status === 'Not Interested') cancelAllLeadNotifications(lead.id);
@@ -563,33 +566,15 @@ export default function LeadDetailScreen() {
       </Modal>
 
       {/* Time Picker Modals */}
-      <Modal visible={showTimePicker || showNextTimePicker} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text variant="titleLarge" style={{ fontWeight: 'bold' }}>Select Time</Text>
-              <IconButton icon="close" onPress={() => { setShowTimePicker(false); setShowNextTimePicker(false); }} />
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {TIME_SLOTS.map((time) => {
-                const current = showTimePicker ? interactionTime : nextAppointmentTime;
-                return (
-                  <TouchableOpacity
-                    key={time}
-                    style={[styles.timeSlot, current === time && styles.timeSlotSelected]}
-                    onPress={() => {
-                      if (showTimePicker) { setInteractionTime(time); setShowTimePicker(false); }
-                      else { setNextAppointmentTime(time); setShowNextTimePicker(false); }
-                    }}
-                  >
-                    <Text style={[{ fontSize: 16, textAlign: 'center' }, current === time && { color: C.navy, fontWeight: 'bold' }]}>{fmt12(time)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <TimePickerModal
+        visible={showTimePicker || showNextTimePicker}
+        value={showTimePicker ? interactionTime : nextAppointmentTime}
+        onClose={() => { setShowTimePicker(false); setShowNextTimePicker(false); }}
+        onSelect={(v) => {
+          if (showTimePicker) setInteractionTime(v); else setNextAppointmentTime(v);
+          setShowTimePicker(false); setShowNextTimePicker(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

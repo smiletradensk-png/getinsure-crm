@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase, getInteractionTextByLead } from '../../utils/database';
 import { Swipeable } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { fmt12, apptKey } from '../../utils/time12';
 import CopyText from '../../components/CopyText';
 import { C } from '../theme';
@@ -105,6 +106,7 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
   const openCard = () => selectionMode ? onToggle(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } });
   const swipeRef = useRef<any>(null);
   const onOpen = (dir: 'left' | 'right') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     swipeRef.current?.close();
     if (dir === 'left') Linking.openURL(`tel:${lead.mobile}`);
     else Linking.openURL(`https://wa.me/${fmtPhone(lead.mobile)}`);

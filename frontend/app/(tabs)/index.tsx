@@ -1,14 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, InteractionManager } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, InteractionManager, ScrollView } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalStats, initializeDatabase } from '../../utils/database';
+import { getLocalStats, getAllLeadsLocal, initializeDatabase } from '../../utils/database';
 import { setPendingStatus, setPendingFollowup } from '../../utils/navFilter';
 import { C } from '../theme';
+import { fmt12, apptKey } from '../../utils/time12';
+import { Linking } from 'react-native';
 
 interface Stats {
   total_leads:       number;
@@ -42,6 +44,7 @@ export default function DashboardScreen() {
   const [stats, setStats]     = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
+  const [agenda, setAgenda] = useState<any[]>([]);
 
   const fetchStats = async () => {
     try {
@@ -53,6 +56,12 @@ export default function DashboardScreen() {
       const counted = (st.new_leads || 0) + (st.interested_leads || 0) + (st.followup_leads || 0) + (st.pipeline_leads || 0) + (st.closed_leads || 0);
       st.not_interested = Math.max(0, (st.total_leads || 0) - counted);
       setStats(st as Stats);
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const list = (getAllLeadsLocal(email) as any[])
+        .filter(l => l.next_followup_date && String(l.next_followup_date).slice(0,10) <= today && !['Closed','Not Interested'].includes(l.status))
+        .sort((a, b) => apptKey(a).localeCompare(apptKey(b)));
+      setAgenda(list.slice(0, 5));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -111,7 +120,7 @@ export default function DashboardScreen() {
       </LinearGradient>
 
       {/* Body */}
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
         <Text style={styles.sectionTitle}>Lead Pipeline</Text>
 
         <View style={styles.cardsGrid}>
@@ -161,7 +170,34 @@ export default function DashboardScreen() {
             <Text style={[styles.followupLabel, { color: '#C62828' }]}>Overdue</Text>
           </TouchableOpacity>
         </View>
-      </View>
+
+        {/* Today's agenda */}
+        {agenda.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Today's Agenda</Text>
+            <View style={{ paddingHorizontal: 16, gap: 8 }}>
+              {agenda.map(l => {
+                const late = String(l.next_followup_date).slice(0,10) < new Date().toISOString().slice(0,10);
+                return (
+                  <TouchableOpacity key={l.id} activeOpacity={0.8}
+                    onPress={() => router.push({ pathname: '/lead-detail', params: { id: l.id } } as any)}
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 14, padding: 12, borderLeftWidth: 4, borderLeftColor: late ? '#C62828' : '#E65100', elevation: 1 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '700', color: C.navy, fontSize: 15 }} numberOfLines={1}>{l.name}</Text>
+                      <Text style={{ color: late ? '#C62828' : '#E65100', fontSize: 12, marginTop: 2 }}>
+                        {late ? String(l.next_followup_date).slice(0,10).split('-').reverse().join('-') + '  ' : ''}{fmt12(l.next_followup_time)}{l.next_followup_type ? ` · ${l.next_followup_type}` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${l.mobile}`)} style={{ backgroundColor: '#E3F2FD', padding: 10, borderRadius: 12 }}>
+                      <MaterialCommunityIcons name="phone" size={20} color="#1565C0" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
