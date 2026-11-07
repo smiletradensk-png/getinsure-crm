@@ -2,9 +2,10 @@ import React, { useEffect, useMemo } from 'react';
 import { Alert, AppState, Text as RNText } from 'react-native';
 import { Stack } from 'expo-router';
 import { PaperProvider } from 'react-native-paper';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { theme, C } from './theme';
-import { requestNotificationPermissions } from '../utils/notifications';
+import { requestNotificationPermissions, rescheduleAllFollowups } from '../utils/notifications';
 import { initializeDatabase, getAllLeadsLocal } from '../utils/database';
 import { syncFacebookLeads } from '../utils/facebookSync';
 import { backupToCloud, fetchCloudBackup, restoreFromCloud } from '../utils/cloudBackup';
@@ -48,6 +49,7 @@ function AppContent() {
   }, [fontScale]);
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <PaperProvider theme={scaledTheme}>
         <Stack screenOptions={{ headerShown: false }}>
@@ -59,6 +61,7 @@ function AppContent() {
         </Stack>
       </PaperProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -173,6 +176,10 @@ export default function RootLayout() {
       try {
         await initializeDatabase();
         await requestNotificationPermissions();
+        try {
+          const em = (await AsyncStorage.getItem('user_email')) ?? '';
+          await rescheduleAllFollowups(getAllLeadsLocal(em));
+        } catch {}
         // Small delay so navigation container is ready before any Alerts
         setTimeout(runStartupChecks, 1500);
       } catch (error) {

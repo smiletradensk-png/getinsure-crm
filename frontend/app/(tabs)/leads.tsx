@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllLeadsLocal, deleteLeadLocal, initializeDatabase, getInteractionTextByLead } from '../../utils/database';
+import { Swipeable } from 'react-native-gesture-handler';
 import { fmt12, apptKey } from '../../utils/time12';
 import CopyText from '../../components/CopyText';
 import { C } from '../theme';
@@ -35,7 +36,8 @@ const STATUS_COLORS: Record<string, string> = {
   'Not Interested': '#546E7A',
 };
 
-const STATUSES = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed'];
+const STATUSES = ['All', 'New', 'Interested', 'Not Interested', 'Follow-up', 'Pipeline', 'Closed', 'Archive'];
+const ARCHIVED = ['Closed', 'Not Interested'];
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
@@ -101,7 +103,34 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
 }) {
   const statusColor = STATUS_COLORS[lead.status] || C.textMid;
   const openCard = () => selectionMode ? onToggle(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } });
+  const swipeRef = useRef<any>(null);
+  const onOpen = (dir: 'left' | 'right') => {
+    swipeRef.current?.close();
+    if (dir === 'left') Linking.openURL(`tel:${lead.mobile}`);
+    else Linking.openURL(`https://wa.me/${fmtPhone(lead.mobile)}`);
+  };
   return (
+    <Swipeable
+      ref={swipeRef}
+      enabled={!selectionMode}
+      overshootLeft={false}
+      overshootRight={false}
+      leftThreshold={70}
+      rightThreshold={70}
+      renderLeftActions={() => (
+        <View style={{ width: 90, marginVertical: 2, backgroundColor: '#1565C0', borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialCommunityIcons name="phone" size={26} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Call</Text>
+        </View>
+      )}
+      renderRightActions={() => (
+        <View style={{ width: 90, marginVertical: 2, backgroundColor: '#2E7D32', borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialCommunityIcons name="whatsapp" size={26} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>WhatsApp</Text>
+        </View>
+      )}
+      onSwipeableOpen={(dir: any) => onOpen(dir === 'left' ? 'left' : 'right')}
+    >
               <TouchableOpacity
                 style={styles.card}
                 onPress={() => selectionMode ? onToggle(lead.id) : router.push({ pathname: '/lead-detail', params: { id: lead.id } })}
@@ -173,6 +202,7 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
                   )}
                 </View>
               </TouchableOpacity>
+    </Swipeable>
   );
 });
 
@@ -226,8 +256,10 @@ export default function LeadsScreen() {
 
   const applyFilters = (q: string, s: string, data: Lead[] = leads, itextArg?: Record<string, string>) => {
     let f = data;
-    if (s !== 'All') f = f.filter(l => l.status === s);
     const tokens = norm(q).split(/\s+/).filter(Boolean);
+    if (s === 'Archive') f = f.filter(l => ARCHIVED.includes(l.status));
+    else if (s !== 'All') f = f.filter(l => l.status === s);
+    else if (!tokens.length) f = f.filter(l => !ARCHIVED.includes(l.status));
     if (tokens.length) {
       if (!interactionRef.current) interactionRef.current = itextArg || getInteractionTextByLead();
       const itext = interactionRef.current;
@@ -242,7 +274,7 @@ export default function LeadsScreen() {
         return tokens.every(t => tokenMatches(t, blob, words));
       });
     }
-    if (s !== 'All') f = [...f].sort((a: any, b: any) => apptKey(a).localeCompare(apptKey(b)));
+    if (s !== 'All' && s !== 'Archive') f = [...f].sort((a: any, b: any) => apptKey(a).localeCompare(apptKey(b)));
     setFiltered(f);
   };
 

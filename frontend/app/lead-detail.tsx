@@ -18,6 +18,7 @@ import {
   saveInteractionLocal, getInteractionsByLeadId, deleteInteractionLocal, updateLeadStatusLocal,
 } from '../utils/database';
 import { C } from './theme';
+import { scheduleFollowupNotification, cancelAllLeadNotifications } from '../utils/notifications';
 import { fmt12 } from '../utils/time12';
 import { loadDropdowns, DEFAULT_STATUSES } from '../utils/dropdowns';
 
@@ -106,6 +107,8 @@ export default function LeadDetailScreen() {
     if (!lead || lead.status === status) return;
     setLead({ ...lead, status });
     updateLeadStatusLocal(lead.id, status);
+    if (status === 'Closed' || status === 'Not Interested') cancelAllLeadNotifications(lead.id);
+    else if (lead.next_followup_date) scheduleFollowupNotification(lead.id, lead.name, lead.next_followup_date, lead.next_followup_time || '10:00');
   };
 
   const handleCall = (mobile: string) => Linking.openURL(`tel:${mobile}`);
@@ -183,6 +186,8 @@ export default function LeadDetailScreen() {
           next_followup_type: nextAppointmentType,
           updated_at: new Date().toISOString(),
         }, lead.user_email || '');
+        await cancelAllLeadNotifications(id as string);
+        await scheduleFollowupNotification(id as string, lead.name, nextAppointmentDate, nextAppointmentTime);
       }
 
       // Send WhatsApp if checked
