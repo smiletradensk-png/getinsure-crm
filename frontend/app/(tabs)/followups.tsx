@@ -41,6 +41,7 @@ export default function FollowupsScreen() {
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter]       = useState<Filter>('today');
+  const [productF, setProductF]   = useState('All');
 
   const fetchFollowups = async (f: Filter) => {
     try {
@@ -69,6 +70,11 @@ export default function FollowupsScreen() {
     return () => task.cancel();
   }, [filter]));
 
+  const prodCounts: Record<string, number> = {};
+  leads.forEach((l: any) => { if (l.product) prodCounts[l.product] = (prodCounts[l.product] || 0) + 1; });
+  const prodList = Object.keys(prodCounts).sort((a, b) => prodCounts[b] - prodCounts[a]);
+  const shownLeads = productF === 'All' ? leads : leads.filter((l: any) => l.product === productF);
+
   if (loading) return <View style={styles.loader}><ActivityIndicator size="large" color={C.navy} /></View>;
 
   const active = FILTERS.find(f => f.key === filter)!;
@@ -78,7 +84,7 @@ export default function FollowupsScreen() {
       {/* Header */}
       <LinearGradient colors={[C.navyDark, C.navy]} style={styles.header}>
         <Text style={styles.headerTitle}>Follow-ups</Text>
-        <Text style={styles.headerSub}>{leads.length} task{leads.length !== 1 ? 's' : ''}</Text>
+        <Text style={styles.headerSub}>{shownLeads.length} task{shownLeads.length !== 1 ? 's' : ''}</Text>
       </LinearGradient>
 
       {/* Filter tabs */}
@@ -109,13 +115,23 @@ export default function FollowupsScreen() {
           );
         })}
       </View>
+      {prodList.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, backgroundColor: C.white }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
+          {['All', ...prodList].map(pr => (
+            <TouchableOpacity key={pr} onPress={() => setProductF(pr)}
+              style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: productF === pr ? '#00796B' : C.border, backgroundColor: productF === pr ? '#00796B' : C.bg }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: productF === pr ? C.white : C.textMid }}>{pr === 'All' ? 'All Products' : `${pr} (${prodCounts[pr]})`}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchFollowups(filter); }} colors={[C.navy]} />}
       >
         <View style={styles.list}>
-          {leads.length === 0 ? (
+          {shownLeads.length === 0 ? (
             <View style={styles.empty}>
               <MaterialCommunityIcons name="calendar-check-outline" size={64} color={C.border} />
               <Text style={styles.emptyText}>
@@ -128,7 +144,7 @@ export default function FollowupsScreen() {
                  'No future follow-ups yet'}
               </Text>
             </View>
-          ) : leads.map(lead => (
+          ) : shownLeads.map(lead => (
             <View key={lead.id} style={styles.card}>
               <View style={[styles.cardAccent, { backgroundColor: active.dot }]} />
               <View style={styles.cardBody}>

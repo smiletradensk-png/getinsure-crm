@@ -210,7 +210,12 @@ const LeadCard = React.memo(function LeadCard({ lead, selectionMode, isSelected,
 
 export default function LeadsScreen() {
   const [leads, setLeads]               = useState<Lead[]>([]);
-  const [filtered, setFiltered]         = useState<Lead[]>([]);
+  const [filteredRaw, setFiltered]      = useState<Lead[]>([]);
+  const [productFilter, setProductFilter] = useState('All');
+  const filtered = productFilter === 'All' ? filteredRaw : filteredRaw.filter(l => (l as any).product === productFilter);
+  const productCounts: Record<string, number> = {};
+  leads.forEach((l: any) => { if (l.product) productCounts[l.product] = (productCounts[l.product] || 0) + 1; });
+  const productList = Object.keys(productCounts).sort((a, b) => productCounts[b] - productCounts[a]);
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
   const [search, setSearch]             = useState('');
@@ -371,6 +376,21 @@ export default function LeadsScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        {productList.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filterRow, { marginTop: 6 }]}>
+            {['All', ...productList].map(pr => (
+              <TouchableOpacity
+                key={pr}
+                style={[styles.chip, productFilter === pr && { backgroundColor: '#00796B', borderColor: '#00796B' }]}
+                onPress={() => setProductFilter(pr)}
+              >
+                <Text style={[styles.chipText, productFilter === pr && styles.chipTextActive]}>
+                  {pr === 'All' ? 'All Products' : `${pr} (${productCounts[pr]})`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {/* Selection bar */}

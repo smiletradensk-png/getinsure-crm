@@ -402,6 +402,18 @@ export default function LeadDetailScreen() {
                       <TouchableOpacity style={styles.dateTimeButton} onPress={() => setShowTimePicker(true)}>
                         <Text style={styles.dateTimeText}>{fmt12(interactionTime)}</Text>
                       </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const n = new Date();
+                          setInteractionDate(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`);
+                          setInteractionTime(`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`);
+                          Haptics.selectionAsync().catch(() => {});
+                        }}
+                        style={{ backgroundColor: C.navy, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <MaterialCommunityIcons name="clock-check-outline" size={16} color="#fff" />
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12, marginLeft: 4 }}>Now</Text>
+                      </TouchableOpacity>
                       <TouchableOpacity style={styles.locationCheckbox} onPress={() => { setTagLocation(!tagLocation); if (!tagLocation) getCurrentLocation(); }}>
                         <Checkbox status={tagLocation ? 'checked' : 'unchecked'} color={C.navy} />
                         <Text style={{ fontSize: 13 }}>Tag Location</Text>
